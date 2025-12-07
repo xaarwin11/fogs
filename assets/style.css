@@ -1,0 +1,335 @@
+/* Modern global styles for Fogss System */
+body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    /* Single unified background to avoid visual "cut" between rules */
+    background: linear-gradient(180deg, #F7F4F0 0%, #F2E7D5 100%);
+    margin: 0;
+    min-height: 100vh;
+    color: #222;
+}
+
+header, nav, .navbar {
+    background: #6B4226; /* restored original navbar color */
+    color: #fff;
+    padding: 1rem 2rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+nav {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    font-size: 1.05rem;
+    justify-content: space-between;
+}
+nav a {
+    color: #fff;
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+nav a.active, nav a:hover {
+    background: #3a4a5a;
+}
+
+.welcome {
+    font-size: 1.3rem;
+    font-weight: 500;
+    margin-bottom: 1.5rem;
+    color: #2a3a4a;
+}
+
+/* Navbar layout helpers */
+.nav-left { display:flex; gap:1rem; align-items:center; }
+.brand { font-size:22px; font-weight:700; letter-spacing:1px; }
+.nav-links { display:flex; gap:0.5rem; align-items:center; }
+.nav-right { display:flex; gap:0.75rem; align-items:center; }
+.nav-user { color:#fff; font-weight:600; }
+.logout { background:#8D6E63; padding:0.4rem 0.8rem; border-radius:6px; color:#fff; }
+.logout:hover { background:#7a5a4e; }
+
+.table-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+.table-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    padding: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: box-shadow 0.2s;
+    position: relative;
+    color: #111;
+}
+.table-card.available {
+    background: #2e7d32; /* original green fill */
+    color: #fff;
+}
+.table-card.occupied {
+    background: #c62828; /* original red fill */
+    color: #fff;
+}
+.table-card:hover {
+    box-shadow: 0 4px 24px rgba(0,0,0,0.13);
+}
+.table-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+/* Use image icons inside the table-icon container */
+.table-icon img {
+    width: 56px;
+    height: 56px;
+    display: block;
+    object-fit: contain;
+}
+.table-status {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+.order-summary {
+    font-size: 0.95rem;
+    color: #555;
+    margin-bottom: 0.5rem;
+}
+
+.table-card .order-summary {
+    background: rgba(255,255,255,0.08);
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+.modal {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.18);
+    padding: 2rem;
+    max-width: 400px;
+    margin: 2rem auto;
+    position: relative;
+}
+/* dialog backdrop for older browsers that support the pseudo-element */
+dialog::backdrop {
+    background: rgba(0,0,0,0.5);
+}
+
+/* Specific table dialog styles (from previous design) */
+#tableDialog {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    padding: 20px;
+    background: #8D6E63;
+    max-width: 400px;
+    width: 90%;
+    color: white;
+    text-align: center;
+}
+.modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    font-size: 1.3rem;
+    cursor: pointer;
+    color: #888;
+}
+
+.kds-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.2rem;
+    margin: 2rem 0;
+    max-width: 1400px;
+}
+.kds-card {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border-left: 5px solid #3ecf8e;
+    position: relative;
+    transition: transform 0.2s, box-shadow 0.2s;
+    min-height: fit-content;
+}
+.kds-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+.kds-card.served {
+    border-left: 5px solid #e94f4f;
+    opacity: 0.75;
+    background: #fafafa;
+}
+.kds-order-header {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: #2a2a2a;
+    line-height: 1.2;
+}
+.kds-items {
+    font-size: 0.9rem;
+    color: #555;
+    flex: 1;
+    min-height: 40px;
+}
+.kds-action {
+    margin-top: 0.75rem;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.5rem;
+}
+.kds-btn {
+    background: #3ecf8e;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    padding: 0.5rem 0.8rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.kds-btn:hover {
+    background: #2fae6e;
+}
+.kds-btn:active {
+    transform: scale(0.98);
+}
+
+/* Main/content wrapper and product table niceties */
+main, .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+/* Products admin table styling (applies when .nice-table is present) */
+.nice-table thead th{
+    text-align:left;
+    padding:0.8rem 0.8rem;
+    border-bottom:1px solid #eee;
+    color:#333;
+}
+.nice-table tbody td{
+    padding:0.9rem 0.8rem;
+    border-bottom:1px solid #fafafa;
+}
+
+/* Dialog wrapper used by dashboard welcome popup */
+.wrapper {
+    padding: 1rem 1.2rem;
+    max-width: 480px;
+    text-align: center;
+    color: #222;
+}
+
+/* Products admin custom styling */
+.products-card {
+    background: linear-gradient(180deg, #ffffff 0%, #fbfbfb 100%);
+    padding: 1.2rem;
+    border-radius: 10px;
+    box-shadow: 0 6px 18px rgba(16, 24, 40, 0.06);
+    border: 1px solid rgba(16,24,40,0.04);
+}
+
+/* Editor modal overlay and box */
+#editor {
+    box-shadow: 0 10px 40px rgba(16,24,40,0.12);
+    border: 1px solid rgba(16,24,40,0.06);
+    background: #fff;
+}
+
+/* Make the products admin area visually centered and themed */
+.container h2 { color: #3a2d23; margin-top: 0; }
+.products-card .edit, .products-card .del { margin-right: 0.4rem; }
+
+/* Ensure table has side padding when inside card */
+.products-card table { width: 100%; }
+.products-card td, .products-card th { padding-left: 0.75rem; padding-right: 0.75rem; }
+
+/* Table header styling for products card */
+.products-card thead th {
+    background: linear-gradient(180deg, #fafafa, #ffffff);
+    font-weight: 700;
+    color: #3a2d23;
+}
+.products-card tbody tr:hover { background: #fffefb; }
+
+/* Buttons in the products admin */
+.products-card button:not(.btn) {
+    margin-left: 0.4rem;
+}
+.products-card button:not(.btn):hover { opacity: 0.95; }
+.products-card .del { background: #c62828; }
+.products-card .del:hover { background: #a31f1f; }
+
+/* Reusable button styles */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #6b4226; /* adapted primary color */
+    color: #fff;
+    border: none;
+    padding: 0.5rem 0.8rem;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 600;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: background 0.12s ease, transform 0.08s ease;
+    white-space: nowrap;
+}
+.btn:hover { background: #55321f; }
+.btn:active { transform: scale(0.98); }
+.btn.secondary { background: #f3f3f3; color:#333; border:1px solid #e6e6e6; }
+.btn.ghost { background: transparent; color: #6b4226; border:1px solid rgba(107,66,38,0.12); }
+.btn.danger { background: #c62828; }
+.btn.small { padding: 0.28rem 0.5rem; font-size: 0.9rem; border-radius:5px; min-width:70px; }
+
+/* Form controls used across the app */
+.form-control {
+    padding: 0.6rem 0.75rem;
+    border: 1px solid #e6e6e6;
+    border-radius: 8px;
+    background: #fff;
+    min-height: 42px;
+    box-sizing: border-box;
+    font-size: 0.98rem;
+}
+.form-control:focus { outline: none; box-shadow: 0 6px 18px rgba(107,66,38,0.06); border-color: #6b4226; }
+.select-control { padding: 0.45rem 0.6rem; border:1px solid #e6e6e6; border-radius:8px; background:#fff; min-height:40px; font-size:0.95rem; }
+.form-row { display:flex; gap:0.6rem; align-items:center; margin-bottom:0.75rem; }
+.form-control.width-sm, .select-control.width-sm { flex: 0 0 160px; width:160px; }
+.form-control.flex-fill { flex: 1 1 auto; }
+
+/* Small helper to make an element grow to fill remaining space in a flex row */
+.flex-fill { flex: 1 1 auto; }
+
+/* Center the products area on the page and add subtle background */
+body .container { display:block; margin-top: 1.2rem; }
+
+@media (max-width: 600px) {
+    .table-grid, .kds-grid {
+        grid-template-columns: 1fr;
+    }
+    nav {
+        flex-direction: column;
+        gap: 1rem;
+    }
+}
