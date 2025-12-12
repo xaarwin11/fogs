@@ -15,7 +15,6 @@ try{
 
     $mysqli = get_db_conn();
 
-    // Detect available and kds columns to remain compatible with older schemas
     $hasKds = false; $hasAvail = false;
     $r = $mysqli->query("SHOW COLUMNS FROM `products` LIKE 'kds'"); if ($r && $r->num_rows > 0) $hasKds = true;
     $r2 = $mysqli->query("SHOW COLUMNS FROM `products` LIKE 'available'"); if ($r2 && $r2->num_rows > 0) $hasAvail = true;

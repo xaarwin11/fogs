@@ -1,7 +1,5 @@
-/* Modern global styles for Fogss System */
 body {
     font-family: 'Segoe UI', Arial, sans-serif;
-    /* Single unified background to avoid visual "cut" between rules */
     background: linear-gradient(180deg, #F7F4F0 0%, #F2E7D5 100%);
     margin: 0;
     min-height: 100vh;
@@ -9,7 +7,7 @@ body {
 }
 
 header, nav, .navbar {
-    background: #6B4226; /* restored original navbar color */
+    background: #6B4226;
     color: #fff;
     padding: 1rem 2rem;
     box-shadow: 0 2px 8px rgba(0,0,0,0.04);
@@ -68,11 +66,11 @@ nav a.active, nav a:hover {
     color: #111;
 }
 .table-card.available {
-    background: #2e7d32; /* original green fill */
+    background: #2e7d32;
     color: #fff;
 }
 .table-card.occupied {
-    background: #c62828; /* original red fill */
+    background: #c62828;
     color: #fff;
 }
 .table-card:hover {
@@ -82,7 +80,7 @@ nav a.active, nav a:hover {
     font-size: 2.5rem;
     margin-bottom: 0.5rem;
 }
-/* Use image icons inside the table-icon container */
+
 .table-icon img {
     width: 56px;
     height: 56px;
@@ -116,12 +114,12 @@ nav a.active, nav a:hover {
     margin: 2rem auto;
     position: relative;
 }
-/* dialog backdrop for older browsers that support the pseudo-element */
+
 dialog::backdrop {
     background: rgba(0,0,0,0.5);
 }
 
-/* Specific table dialog styles (from previous design) */
+
 #tableDialog {
     border: none;
     border-radius: 10px;
@@ -211,14 +209,12 @@ dialog::backdrop {
     transform: scale(0.98);
 }
 
-/* Main/content wrapper and product table niceties */
 main, .container {
     max-width: 1100px;
     margin: 0 auto;
     padding: 1rem;
 }
 
-/* Products admin table styling (applies when .nice-table is present) */
 .nice-table thead th{
     text-align:left;
     padding:0.8rem 0.8rem;
@@ -230,7 +226,6 @@ main, .container {
     border-bottom:1px solid #fafafa;
 }
 
-/* Dialog wrapper used by dashboard welcome popup */
 .wrapper {
     padding: 1rem 1.2rem;
     max-width: 480px;
@@ -238,7 +233,6 @@ main, .container {
     color: #222;
 }
 
-/* Products admin custom styling */
 .products-card {
     background: linear-gradient(180deg, #ffffff 0%, #fbfbfb 100%);
     padding: 1.2rem;
@@ -247,22 +241,18 @@ main, .container {
     border: 1px solid rgba(16,24,40,0.04);
 }
 
-/* Editor modal overlay and box */
 #editor {
     box-shadow: 0 10px 40px rgba(16,24,40,0.12);
     border: 1px solid rgba(16,24,40,0.06);
     background: #fff;
 }
 
-/* Make the products admin area visually centered and themed */
 .container h2 { color: #3a2d23; margin-top: 0; }
 .products-card .edit, .products-card .del { margin-right: 0.4rem; }
 
-/* Ensure table has side padding when inside card */
 .products-card table { width: 100%; }
 .products-card td, .products-card th { padding-left: 0.75rem; padding-right: 0.75rem; }
 
-/* Table header styling for products card */
 .products-card thead th {
     background: linear-gradient(180deg, #fafafa, #ffffff);
     font-weight: 700;
@@ -270,7 +260,6 @@ main, .container {
 }
 .products-card tbody tr:hover { background: #fffefb; }
 
-/* Buttons in the products admin */
 .products-card button:not(.btn) {
     margin-left: 0.4rem;
 }
@@ -278,12 +267,11 @@ main, .container {
 .products-card .del { background: #c62828; }
 .products-card .del:hover { background: #a31f1f; }
 
-/* Reusable button styles */
 .btn {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    background: #6b4226; /* adapted primary color */
+    background: #6b4226;
     color: #fff;
     border: none;
     padding: 0.5rem 0.8rem;
@@ -302,7 +290,7 @@ main, .container {
 .btn.danger { background: #c62828; }
 .btn.small { padding: 0.28rem 0.5rem; font-size: 0.9rem; border-radius:5px; min-width:70px; }
 
-/* Form controls used across the app */
+
 .form-control {
     padding: 0.6rem 0.75rem;
     border: 1px solid #e6e6e6;
@@ -318,10 +306,8 @@ main, .container {
 .form-control.width-sm, .select-control.width-sm { flex: 0 0 160px; width:160px; }
 .form-control.flex-fill { flex: 1 1 auto; }
 
-/* Small helper to make an element grow to fill remaining space in a flex row */
 .flex-fill { flex: 1 1 auto; }
 
-/* Center the products area on the page and add subtle background */
 body .container { display:block; margin-top: 1.2rem; }
 
 @media (max-width: 600px) {

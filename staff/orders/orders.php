@@ -39,7 +39,6 @@ try {
     error_log('orders list error: ' . $ex->getMessage());
 }
 
-// Build a list of distinct checkout users from the loaded orders for the group filter
 $checkedUsers = [];
 foreach ($orders as $o) {
     $uname = trim((string)($o['checked_out_by_username'] ?? ($o['checked_out_by'] ?? '')));
@@ -84,7 +83,6 @@ $checkedUsers = array_keys($checkedUsers);
         <tbody>
         <?php foreach ($orders as $o): ?>
             <?php
-                // prepare dataset attributes for client-side filtering/sorting
                 $dataCreated = htmlspecialchars($o['created_at']);
                 $dataTotal = number_format((float)($o['total'] ?? 0), 2);
                 $dataTable = htmlspecialchars($o['table_id']);
@@ -107,7 +105,6 @@ $checkedUsers = array_keys($checkedUsers);
     </table>
     
     <script>
-    // Simple client-side search and sort for the orders table
     (function(){
     const search = document.getElementById('ordersSearch');
     const sortSel = document.getElementById('ordersSort');
@@ -123,7 +120,6 @@ $checkedUsers = array_keys($checkedUsers);
             const q = (search.value || '').trim().toLowerCase();
             const rows = rowsArray();
 
-            // filter by reference and group
             const group = (groupSel && groupSel.value) ? groupSel.value : 'all';
             rows.forEach(r => {
                 const ref = (r.dataset.reference || '').toLowerCase();
@@ -134,7 +130,6 @@ $checkedUsers = array_keys($checkedUsers);
                 r.style.display = show ? '' : 'none';
             });
 
-            // sort visible rows
             const mode = sortSel.value;
             const visible = rows.filter(r => r.style.display !== 'none');
             visible.sort((a,b) => {
@@ -157,7 +152,6 @@ $checkedUsers = array_keys($checkedUsers);
                 return 0;
             });
 
-            // append in sorted order
             visible.forEach(r => tbody.appendChild(r));
         }
 

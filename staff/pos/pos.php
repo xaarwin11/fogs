@@ -36,7 +36,7 @@ try {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>POS - Point of Sale</title>
-    <link rel="stylesheet" href="/fogssystem/assets/style.css">
+    <link rel="stylesheet" href="/fogs/assets/style.css">
     <style>
         .pos-container { display:grid; grid-template-columns:1fr 300px; gap:1.5rem; max-width:1200px; margin:1.5rem auto; padding:1rem; }
         .products-section { }
@@ -109,7 +109,6 @@ try {
         </div>
     </div>
 
-    <!-- Payment popup -->
     <div id="paymentPopup" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); align-items:center; justify-content:center; z-index:9999;">
         <div style="background:#fff; border-radius:8px; padding:1rem; width:420px; max-width:95%; box-shadow:0 8px 40px rgba(0,0,0,0.2);">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
@@ -149,8 +148,7 @@ try {
     let allProducts = {};
     let currentCategory = null;
 
-    // Save cart to database (only when Save button is clicked)
-    // allowEmpty: if true, allows saving an empty cart (used by clearCart)
+    
     function updateOrderTime(orderId) {
         if (!orderId) return;
         fetch('update_order_time.php', {
@@ -210,7 +208,7 @@ try {
         });
     }
 
-    // Load cart from database for selected table
+
     function loadCart() {
         console.log('loadCart: selectedTableId=', selectedTableId);
         
@@ -233,7 +231,7 @@ try {
                 if (data.success) {
                     currentOrderId = data.order_id;
                     if (data.items && data.items.length > 0) {
-                        // Rebuild cart object from fetched items
+                        
                         cart = {};
                         data.items.forEach(item => {
                             const itemId = 'product_' + item.product_id;
@@ -372,11 +370,11 @@ try {
         if (!selectedTableId) return;
         cart = {};
         updateCart();
-        // Auto-save empty cart to database
+        
         console.log('clearCart: auto-saving empty cart for table', selectedTableId);
-        saveCart(true);  // allowEmpty = true
+        saveCart(true); 
         if (currentOrderId) updateOrderTime(currentOrderId);
-        // Mark table as available (occupied = 0)
+        
         updateTableStatus();
     }
 
@@ -399,17 +397,16 @@ try {
             alert('Please select a table and add items');
             return;
         }
-        // Save cart one final time to ensure all items are in DB
+        
         saveCart();
 
-        // Wait shortly for save to complete (relies on saveCart setting currentOrderId)
+    
         setTimeout(() => {
             if (!currentOrderId) {
                 alert('Error: No order found. Please try again.');
                 return;
             }
 
-            // Open payment popup
             const popup = document.getElementById('paymentPopup');
             const pmTotal = document.getElementById('pmTotal');
             const pmGiven = document.getElementById('pmGiven');
@@ -419,12 +416,10 @@ try {
                 return;
             }
 
-            // compute total from cart
             const total = Object.values(cart).reduce((s, it) => s + (it.price * it.qty), 0);
             pmTotal.textContent = '₱' + total.toFixed(2);
             pmGiven.value = total.toFixed(2);
             pmChange.textContent = '₱0.00';
-            // default to cash
             const cash = document.getElementById('pmCash'); if (cash) cash.checked = true;
             popup.style.display = 'flex';
 
@@ -437,11 +432,9 @@ try {
             pmGiven.removeEventListener('input', computeChange);
             pmGiven.addEventListener('input', computeChange);
 
-            // Cancel / Close handlers
             document.getElementById('pmCancel').onclick = () => { popup.style.display = 'none'; };
             document.getElementById('pmClose').onclick = () => { popup.style.display = 'none'; };
 
-            // Confirm handler
             document.getElementById('pmConfirm').onclick = () => {
                 const sel = document.querySelector('input[name="pmMethod"]:checked');
                 const method = sel ? sel.value : 'cash';
@@ -456,7 +449,7 @@ try {
                 }).then(r => r.json()).then(data => {
                     if (data && data.success) {
                         alert('Payment saved — reference: ' + (data.reference || ''));
-                        // clear local cart and UI
+                        
                         cart = {};
                         currentOrderId = null;
                         updateCart();

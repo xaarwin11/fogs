@@ -23,7 +23,6 @@ if (!$user_id) {
 try {
     $mysqli = get_db_conn();
     
-    // Find the latest open shift (clock_out IS NULL) for this user
     $stmt = $mysqli->prepare('SELECT id, clock_in FROM `time_tracking` WHERE user_id = ? AND clock_out IS NULL ORDER BY clock_in DESC LIMIT 1');
     if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
 
@@ -41,13 +40,11 @@ try {
         exit;
     }
 
-    // Calculate hours worked for this shift
     $clock_in = new DateTime($record['clock_in']);
     $clock_out = new DateTime('now');
     $interval = $clock_in->diff($clock_out);
     $hours = $interval->h + ($interval->i / 60) + ($interval->s / 3600);
 
-    // Update record with clock_out and hours_worked
     $now = date('Y-m-d H:i:s');
     $stmt = $mysqli->prepare('UPDATE `time_tracking` SET clock_out = ?, hours_worked = ? WHERE id = ?');
     if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);

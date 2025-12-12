@@ -37,7 +37,6 @@ if (!in_array($role, ['staff','admin','manager','kitchen'])) {
             font-weight: 600;
             color: #333;
         }
-        /* Buttons and card styling */
         .kds-btn { border: none; border-radius:6px; padding:0.45rem 0.7rem; font-weight:700; cursor:pointer; transition:background 0.12s, transform 0.06s; }
         .kds-btn.primary { background:#3ecf8e; color:#fff; }
         .kds-btn.primary:hover { background:#2fae6e; }
@@ -49,7 +48,6 @@ if (!in_array($role, ['staff','admin','manager','kitchen'])) {
         .kds-order-header { font-weight:700; margin-bottom:0.6rem; display:flex; justify-content:space-between; align-items:center; }
         .kds-items { margin-top:0.5rem; }
 
-        /* Modal for hidden orders */
         .kds-modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none; align-items:center; justify-content:center; z-index:9999; }
         .kds-modal { background:#fff; border-radius:10px; width:90%; max-width:900px; max-height:80vh; overflow:auto; padding:1rem; box-shadow:0 8px 40px rgba(0,0,0,0.2); }
         .kds-modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem; }
@@ -67,7 +65,6 @@ if (!in_array($role, ['staff','admin','manager','kitchen'])) {
         </div>
     </div>
 
-    <!-- Hidden orders modal -->
     <div id="kdsHiddenModal" class="kds-modal-backdrop">
         <div class="kds-modal">
             <div class="kds-modal-header">
@@ -86,7 +83,6 @@ if (!in_array($role, ['staff','admin','manager','kitchen'])) {
 <script>
     const ordersGrid = document.getElementById('ordersGrid');
     
-    // Parse PHP datetime string (YYYY-MM-DD HH:MM:SS) assuming UTC+8 timezone
     function parsePhpDateTimeUTC8(str) {
         if (!str) return null;
         const match = str.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
@@ -98,25 +94,20 @@ if (!in_array($role, ['staff','admin','manager','kitchen'])) {
             const min = parseInt(match[5]);
             const sec = parseInt(match[6]);
             
-            // Create as UTC+8 time: convert from UTC+8 to UTC first by subtracting 8 hours
             const utcDate = new Date(Date.UTC(year, month, day, hour - 8, min, sec));
             return utcDate;
         }
         return new Date(str);
     }
     
-    // Get current time in UTC+8
     function getCurrentTimeUTC8() {
         const now = new Date();
-        // Convert current local time to UTC+8
-        // First get UTC time, then add 8 hours
         const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
         const utc8Ms = utcMs + (8 * 3600000);
         const utc8Time = new Date(utc8Ms);
         return utc8Time;
     }
     
-    // Calculate time elapsed since order creation
     function getElapsedTime(createdAt) {
         const now = getCurrentTimeUTC8();
         const created = parsePhpDateTimeUTC8(createdAt);
@@ -140,7 +131,6 @@ if (!in_array($role, ['staff','admin','manager','kitchen'])) {
             const c = document.createElement('div');
             c.className = 'kds-card';
 
-            // Check if all items are served (pending = quantity - served)
             const allServed = order.items.every(it => (parseInt(it.quantity || 0) - parseInt(it.served || 0)) === 0);
             if (allServed) {
                 c.classList.add('served');
@@ -148,7 +138,6 @@ if (!in_array($role, ['staff','admin','manager','kitchen'])) {
 
             const header = document.createElement('div');
             header.className = 'kds-order-header';
-            // Show elapsed time since last save (updated_at), fallback to created_at
             const elapsedTime = getElapsedTime(order.updated_at || order.created_at);
             const leftSpan = document.createElement('div');
             leftSpan.textContent = '🍽 Table ' + order.table_id + ' — #' + order.order_id;
@@ -180,7 +169,6 @@ if (!in_array($role, ['staff','admin','manager','kitchen'])) {
                 status.style.cssText = (pending === 0 ? 'background:#e94f4f; color:#fff;' : 'background:#3ecf8e; color:#fff;') + ' padding:0.2rem 0.6rem; border-radius:3px; font-size:0.82rem; font-weight:700; min-width:60px; text-align:center;';
                 status.textContent = pending === 0 ? '✓ Served' : ('● Pending x' + pending);
 
-                // individual serve button: mark all served or undo
                 const serveBtn = document.createElement('button');
                 serveBtn.className = 'kds-btn';
                 serveBtn.style.padding = '0.25rem 0.5rem';
@@ -192,7 +180,6 @@ if (!in_array($role, ['staff','admin','manager','kitchen'])) {
                         }
                     } else {
                         if (confirm('Serve 1 of this item?')) {
-                            // Increment served by 1 (clamped in backend)
                             toggleItemServed(it.order_item_id, (parseInt(it.served || 0) + 1));
                         }
                     }
@@ -217,7 +204,6 @@ if (!in_array($role, ['staff','admin','manager','kitchen'])) {
                 const promises = order.items.map(it => {
                     const pending = (parseInt(it.quantity || 0) - parseInt(it.served || 0));
                     if ((desired === 1 && pending > 0) || (desired === 0 && (parseInt(it.served || 0) > 0))) {
-                        // desired=1 -> set served to full quantity; desired=0 -> set served to 0
                         const setVal = desired === 1 ? parseInt(it.quantity || 0) : 0;
                         return toggleItemServed(it.order_item_id, setVal, true);
                     }
@@ -267,7 +253,6 @@ if (!in_array($role, ['staff','admin','manager','kitchen'])) {
         }).catch(err => console.warn('kitchen refresh failed', err));
     }
 
-    // Hidden orders modal loader
     const hiddenModal = document.getElementById('kdsHiddenModal');
     const hiddenList = document.getElementById('hiddenOrdersList');
     function loadHiddenOrders() {
@@ -304,12 +289,10 @@ if (!in_array($role, ['staff','admin','manager','kitchen'])) {
             }).catch(err => console.warn('delete order failed', err));
     }
 
-    // initial fetch and polling
     fetchKitchenOrders();
     let poll = setInterval(fetchKitchenOrders, 6000);
     document.getElementById('manualRefresh').addEventListener('click', fetchKitchenOrders);
 
-    // Tabs behavior
     const tabActive = document.getElementById('tabActive');
     const tabHidden = document.getElementById('tabHidden');
     function setActiveTab(hidden) {

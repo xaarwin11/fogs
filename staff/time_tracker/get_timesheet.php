@@ -23,11 +23,9 @@ if (!$user_id) {
 try {
     $mysqli = get_db_conn();
     
-    // Determine if requesting own timesheet or all staff timesheets
     $view_all = in_array($role, ['admin', 'manager']);
     $request_user_id = $_GET['user_id'] ?? null;
     
-    // Non-managers can only view their own
     if (!$view_all || !$request_user_id) {
         $target_user_id = $user_id;
     } else {
@@ -37,7 +35,6 @@ try {
     $date_param = $_GET['date'] ?? date('Y-m-d');
     
     if ($target_user_id === $user_id || $view_all) {
-        // Get all records for the date and compute totals; support multiple shifts
         $stmt = $mysqli->prepare(
             'SELECT tt.id, tt.clock_in, tt.clock_out, tt.hours_worked, tt.date, c.username, c.first_name, c.last_name
              FROM `time_tracking` tt
@@ -57,7 +54,6 @@ try {
         $res->free();
         $stmt->close();
 
-        // Build response
         $total_hours = 0.0;
         $open_shift = false;
         $open_shift_clock_in = null;

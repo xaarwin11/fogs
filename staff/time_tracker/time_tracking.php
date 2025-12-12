@@ -3,11 +3,9 @@ session_start();
 require_once __DIR__ . '/../../db.php';
 
 if (empty($_SESSION['user_id'])) {
-    // not logged in, redirect to centralized login
     header('Location: /fogs/login.php');
     exit;
 }
-// Only staff/admin/manager may use this dashboard
 $role = strtolower($_SESSION['role'] ?? '');
 if (!in_array($role, ['staff','admin','manager'])) {
     header('Location: /fogs/customer/dashboard.php');
@@ -205,7 +203,6 @@ if (!in_array($role, ['staff','admin','manager'])) {
 </div>
 
 <script>
-    // Update current time display
     function updateCurrentTime() {
         const now = new Date();
         const timeStr = now.toLocaleTimeString('en-PH', {
@@ -216,10 +213,8 @@ if (!in_array($role, ['staff','admin','manager'])) {
         document.getElementById('currentTime').textContent = timeStr;
     }
     
-    // Parse PHP datetime string (YYYY-MM-DD HH:MM:SS) assuming UTC+8 timezone
     function parsePhpDateTime(str) {
         if (!str) return null;
-        // Handle format: 2025-12-06 12:30:45 (treat as UTC+8)
         const match = str.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
         if (match) {
             const year = parseInt(match[1]);
@@ -229,15 +224,13 @@ if (!in_array($role, ['staff','admin','manager'])) {
             const min = parseInt(match[5]);
             const sec = parseInt(match[6]);
             
-            // Create date in UTC+8: treat the time values as if they're already in UTC+8
-            // then convert to a Date object that displays correctly
+        
             const utcDate = new Date(Date.UTC(year, month, day, hour - 8, min, sec));
             return utcDate;
         }
         return new Date(str);
     }
     
-    // Load timesheet data
     async function loadTimesheet() {
         try {
             const response = await fetch('get_timesheet.php');
@@ -253,7 +246,6 @@ if (!in_array($role, ['staff','admin','manager'])) {
         }
     }
     
-    // Update UI based on timesheet data
     function updateUI(data) {
         const statusDisplay = document.getElementById('statusDisplay');
         const btnClockIn = document.getElementById('btnClockIn');
@@ -262,7 +254,6 @@ if (!in_array($role, ['staff','admin','manager'])) {
         const clockInTimeValue = document.getElementById('clockInTimeValue');
         const hoursToday = document.getElementById('hoursToday');
         
-        // total_hours aggregates all shifts for the date
         hoursToday.textContent = (data.total_hours || 0).toFixed(2);
 
         if (data.open_shift) {
@@ -294,7 +285,6 @@ if (!in_array($role, ['staff','admin','manager'])) {
             clockInTimeDiv.style.display = 'none';
         }
 
-        // Render list of shift records
         const recs = data.records || [];
         if (recs.length === 0) {
             document.getElementById('timesheetContent').innerHTML = '<p style="text-align: center; color: #999;">No clocking records yet</p>';
@@ -311,7 +301,6 @@ if (!in_array($role, ['staff','admin','manager'])) {
         }
     }
     
-    // Clock in
     async function clockIn() {
         const btnClockIn = document.getElementById('btnClockIn');
         btnClockIn.disabled = true;
@@ -336,7 +325,6 @@ if (!in_array($role, ['staff','admin','manager'])) {
         }
     }
     
-    // Clock out
     async function clockOut() {
         const btnClockOut = document.getElementById('btnClockOut');
         btnClockOut.disabled = true;
@@ -361,7 +349,6 @@ if (!in_array($role, ['staff','admin','manager'])) {
         }
     }
     
-    // Show message
     function showMessage(msg, type) {
         const msgEl = document.getElementById('message');
         msgEl.textContent = msg;
@@ -371,15 +358,13 @@ if (!in_array($role, ['staff','admin','manager'])) {
         }, 5000);
     }
     
-    // Event listeners
     document.getElementById('btnClockIn').addEventListener('click', clockIn);
     document.getElementById('btnClockOut').addEventListener('click', clockOut);
     
-    // Initialize
     updateCurrentTime();
     setInterval(updateCurrentTime, 1000);
     loadTimesheet();
-    setInterval(loadTimesheet, 10000); // Refresh every 10 seconds
+    setInterval(loadTimesheet, 10000);
 </script>
 </body>
 </html>

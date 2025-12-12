@@ -10,7 +10,6 @@ try{
     $mysqli = get_db_conn();
 
     if ($id) {
-        // Return a single product (existing behavior)
         $stmt = $mysqli->prepare('SELECT id, name, category, price, available, kds FROM products WHERE id = ? LIMIT 1');
         if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
         $stmt->bind_param('i',$id);
@@ -20,7 +19,6 @@ try{
         $stmt->close();
 
         if ($p) {
-            // normalize fields
             $p['price'] = isset($p['price']) ? (float)$p['price'] : 0.0;
             $p['available'] = isset($p['available']) ? (bool)$p['available'] : false;
             $p['kds'] = (bool)($p['kds'] ?? false);
@@ -31,7 +29,6 @@ try{
         exit;
     }
 
-    // No id => return all products grouped by category for POS UI
     $stmt = $mysqli->prepare('SELECT id, name, category, price, available, kds FROM products WHERE available = 1 ORDER BY category ASC, name ASC');
     if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
     $stmt->execute();

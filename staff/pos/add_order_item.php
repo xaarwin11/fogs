@@ -26,7 +26,6 @@ if (!$table_id || !$product_id || $quantity < 1) {
 try {
     $mysqli = get_db_conn();
     
-    // Find open order for table, or create one
     $stmt = $mysqli->prepare('SELECT id FROM `orders` WHERE table_id = ? AND status = "open" LIMIT 1');
     if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
     
@@ -41,7 +40,6 @@ try {
     if ($order_row) {
         $order_id = (int)$order_row['id'];
     } else {
-        // Create new order
         $stmt = $mysqli->prepare('INSERT INTO `orders` (table_id, status) VALUES (?, "open")');
         if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
         
@@ -51,7 +49,6 @@ try {
         $stmt->close();
     }
     
-    // Check if product already in order, increment quantity
     $stmt = $mysqli->prepare('SELECT id, quantity FROM `order_items` WHERE order_id = ? AND product_id = ?');
     if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
     
@@ -63,7 +60,6 @@ try {
     $stmt->close();
     
     if ($item_row) {
-        // Update quantity
         $new_qty = (int)$item_row['quantity'] + $quantity;
         $stmt = $mysqli->prepare('UPDATE `order_items` SET quantity = ? WHERE id = ?');
         if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
@@ -72,7 +68,6 @@ try {
         $stmt->execute();
         $stmt->close();
     } else {
-        // Insert new item
         $stmt = $mysqli->prepare('INSERT INTO `order_items` (order_id, product_id, quantity) VALUES (?, ?, ?)');
         if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
         

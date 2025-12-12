@@ -3,7 +3,6 @@
 require_once 'db.php';
 session_start();
 
-// if already logged in, send to dashboard depending on role
 if (!empty($_SESSION['user_id'])) {
     $role = strtolower($_SESSION['role'] ?? '');
     if (in_array($role, ['staff', 'admin', 'manager'])) {
@@ -79,11 +78,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Login</title>
     <link rel="stylesheet" href="/fogs/assets/style.css">
     <style>
-        /* compact, centered login container */
         .login-container {
             width: 100%;
-            max-width: 420px; /* reasonable fixed max width */
-            margin: 6vh auto; /* centers horizontally and gives vertical spacing */
+            max-width: 420px; 
+            margin: 6vh auto; 
             padding: 20px;
             background: #8D6E63;
             border-radius: 10px;
@@ -94,13 +92,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .login-container input { width: 100%; padding: 8px; margin-top: 6px; border-radius: 4px; border: none; box-sizing: border-box; }
         .login-container button { margin-top: 12px; width: 100%; padding: 10px; border-radius: 6px; border: none; background: #C58F63; color: #fff; cursor: pointer; }
         #error { color: #ffdddd; margin-top: 8px; display:block; text-align:center; }
-        /* ensure body doesn't add unexpected padding/margins */
         body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: linear-gradient(180deg, #F7F4F0 0%, #F2E7D5 100%); }
     </style>
 </head>
 <body>
     <div class="login-container">
-        <img src="/fogssystem/assets/logo.png" alt="Logo" style="display:block;margin:0 auto 12px;max-width:100px;">
+        <img src="/fogs/assets/logo.png" alt="Logo" style="display:block;margin:0 auto 12px;max-width:100px;">
         <h2 style="text-align:center;margin:0 0 8px;color:#fff;">Login</h2>
         <form method="POST" action="">
             <br><label for="username">Username</label>

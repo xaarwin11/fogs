@@ -23,7 +23,6 @@ if (!$table_id) {
 try {
     $mysqli = get_db_conn();
     
-    // Get open order for table
     $stmt = $mysqli->prepare('SELECT id FROM `orders` WHERE table_id = ? AND status = "open" LIMIT 1');
     if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
     
@@ -41,7 +40,6 @@ try {
     
     $order_id = (int)$order['id'];
     
-    // Get order items with product details
     $stmt = $mysqli->prepare('\n        SELECT oi.id, oi.quantity, p.name, p.price \n        FROM `order_items` oi \n        JOIN `products` p ON oi.product_id = p.id \n        WHERE oi.order_id = ? \n        ORDER BY oi.created_at ASC\n    ');
     if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
     

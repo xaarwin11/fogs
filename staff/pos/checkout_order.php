@@ -26,7 +26,6 @@ if (!$order_id) {
 try {
     $mysqli = get_db_conn();
     
-    // Get table_id from order
     $stmt = $mysqli->prepare('SELECT table_id FROM `orders` WHERE id = ?');
     if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
     
@@ -44,8 +43,7 @@ try {
     }
     
     $table_id = (int)$order['table_id'];
-    // Compute order total on server to avoid client tampering
-    // Use order_items.price when present, otherwise fall back to products.price
+    
     $stmt = $mysqli->prepare('SELECT COALESCE(SUM((CASE WHEN oi.price IS NOT NULL THEN oi.price ELSE p.price END) * oi.quantity),0) as total FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ?');
     if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
     $stmt->bind_param('i', $order_id);
@@ -55,7 +53,7 @@ try {
     $stmt->close();
     $total = isset($row['total']) ? (float)$row['total'] : 0.0;
 
-    // Validate payment amount if provided
+    
     if ($amount_paid === null) $amount_paid = $total;
     if ($amount_paid < $total - 0.001) {
         http_response_code(400);
@@ -63,7 +61,7 @@ try {
         exit;
     }
 
-    // Generate month-based reference: RYYYYMM-XXXX (sequence per month)
+    
     $month = date('Ym');
     $like = $mysqli->real_escape_string('R' . $month . '-%');
     $countRes = $mysqli->query("SELECT COUNT(*) as c FROM `orders` WHERE `reference` LIKE '{$like}'");
@@ -74,7 +72,7 @@ try {
     }
     $reference = 'R' . $month . '-' . str_pad((string)$seq, 4, '0', STR_PAD_LEFT);
 
-    // Record payment in payments table (if present) and update order summary
+    
     $userId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
     $change = round($amount_paid - $total, 2);
 
@@ -91,7 +89,7 @@ try {
                 $ins->close();
             }
 
-            // Update orders summary (no granular payment fields stored here)
+           
             $up = $mysqli->prepare('UPDATE `orders` SET `status` = "paid", `reference` = ?, `paid_at` = NOW(), `checked_out_by` = ? WHERE id = ?');
             if ($up) {
                 $up->bind_param('sii', $reference, $userId, $order_id);
@@ -99,7 +97,7 @@ try {
                 $up->close();
             }
         } else {
-            // No payments table — keep previous behaviour but avoid storing unnecessary details if possible
+           
             $up = $mysqli->prepare('UPDATE `orders` SET `status` = "paid", `reference` = ?, `paid_at` = NOW(), `checked_out_by` = ? WHERE id = ?');
             if ($up) {
                 $up->bind_param('sii', $reference, $userId, $order_id);
@@ -108,7 +106,7 @@ try {
             }
         }
 
-        // Mark table as available
+       
         $stmt = $mysqli->prepare('UPDATE `tables` SET occupied = 0 WHERE id = ?');
         if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
         $stmt->bind_param('i', $table_id);
@@ -121,7 +119,7 @@ try {
         throw $e;
     }
 
-    // Save the user who checked out (if column exists)
+    
     $userId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
     $colChecked = $mysqli->query("SHOW COLUMNS FROM `orders` LIKE 'checked_out_by'");
     if ($colChecked && $colChecked->num_rows > 0 && $userId) {
@@ -133,7 +131,7 @@ try {
         }
     }
     
-    // Set table as available after checkout
+    
     $stmt = $mysqli->prepare('UPDATE `tables` SET occupied = 0 WHERE id = ?');
     if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
     

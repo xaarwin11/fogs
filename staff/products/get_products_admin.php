@@ -10,8 +10,6 @@ if (!in_array($role, ['staff','admin','manager'])) {
 }
 try {
     $mysqli = get_db_conn();
-    // Some installations may not have the `kds` column yet (migration not run).
-    // Check for the column and fall back gracefully.
     $hasKds = false;
     $colRes = $mysqli->query("SHOW COLUMNS FROM `products` LIKE 'kds'");
     if ($colRes && $colRes->num_rows > 0) $hasKds = true;

@@ -27,7 +27,6 @@ try {
     
     error_log('save_pos_cart: table_id=' . $table_id . ', items count=' . count($items));
     
-    // Get or create an open order for this table
     $stmt = $mysqli->prepare('SELECT id FROM `orders` WHERE table_id = ? AND status != "paid" LIMIT 1');
     if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
     
@@ -44,7 +43,6 @@ try {
     if ($existing_order) {
         $order_id = (int)$existing_order['id'];
     } else {
-        // Create new order with 'open' status
         $status = 'open';
         $stmt = $mysqli->prepare('INSERT INTO `orders` (table_id, status) VALUES (?, ?)');
         if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
@@ -59,14 +57,12 @@ try {
         throw new Exception('Failed to get or create order');
     }
     
-    // New behavior: consolidate order_items into a single row per product_id
-    // Fetch existing served amounts per product so we preserve how many were already served
-    $existingMap = [];
+     $existingMap = [];
     $res = $mysqli->query('SELECT product_id, quantity, served, price FROM order_items WHERE order_id = ' . intval($order_id));
     if ($res) {
         while ($r = $res->fetch_assoc()) {
             $pid = intval($r['product_id']);
-            // aggregate if multiple rows existed
+           
             if (!isset($existingMap[$pid])) {
                 $existingMap[$pid] = ['quantity' => 0, 'served' => 0, 'price' => null];
             }
@@ -77,15 +73,13 @@ try {
         $res->free();
     }
 
-    // Clear existing items for this order (we'll rebuild from cart with single rows per product)
-    $stmt = $mysqli->prepare('DELETE FROM `order_items` WHERE order_id = ?');
+      $stmt = $mysqli->prepare('DELETE FROM `order_items` WHERE order_id = ?');
     if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
     $stmt->bind_param('i', $order_id);
     $stmt->execute();
     $stmt->close();
 
-    // Preload product prices for items in cart so we store historical price on order_items
-    $productPrices = [];
+        $productPrices = [];
     $productIds = array_values(array_unique(array_filter(array_map(function($it){ return intval($it['product_id'] ?? 0); }, $items))));
     if (count($productIds) > 0) {
         $in = implode(',', array_map('intval', $productIds));
@@ -98,7 +92,7 @@ try {
         }
     }
 
-    // Aggregate incoming items per product (client may send duplicates)
+    
     $newQuantities = [];
     foreach ($items as $item) {
         $pid = intval($item['product_id'] ?? 0);
@@ -108,8 +102,7 @@ try {
         $newQuantities[$pid] += $qty;
     }
 
-    // Insert single row per product with quantity = newQty and served preserved from existingMap (clamped)
-    $ins = $mysqli->prepare('INSERT INTO `order_items` (order_id, product_id, quantity, served, price) VALUES (?, ?, ?, ?, ?)');
+        $ins = $mysqli->prepare('INSERT INTO `order_items` (order_id, product_id, quantity, served, price) VALUES (?, ?, ?, ?, ?)');
     if (!$ins) throw new Exception('Prepare failed: ' . $mysqli->error);
     foreach ($newQuantities as $product_id => $quantity) {
         $prevServed = isset($existingMap[$product_id]) ? intval($existingMap[$product_id]['served']) : 0;

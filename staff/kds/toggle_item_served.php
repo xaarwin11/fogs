@@ -21,10 +21,8 @@ try {
     $data = json_decode(file_get_contents('php://input'), true);
     $orderItemId = isset($data['order_item_id']) ? (int)$data['order_item_id'] : 0;
     if (!$orderItemId) throw new Exception('Missing order_item_id');
-    // optional explicit set value: 1 = served, 0 = pending
     $explicit = null;
     if (isset($data['set'])) {
-        // allow numeric set (explicit served amount) or boolean-like
         if (is_numeric($data['set'])) {
             $explicit = (int)$data['set'];
         } else {
@@ -32,7 +30,6 @@ try {
         }
     }
 
-    // Read current quantity to clamp values
     $stmt = $mysqli->prepare('SELECT quantity, served FROM order_items WHERE id = ? LIMIT 1');
     if (!$stmt) throw new Exception($mysqli->error);
     $stmt->bind_param('i', $orderItemId);
@@ -42,7 +39,6 @@ try {
     $stmt->close();
 
     if ($explicit === null) {
-        // toggle: if fully served, mark unserved; otherwise mark fully served
         if ((int)$curServed >= (int)$curQty) {
             $newServed = 0;
         } else {
@@ -54,15 +50,12 @@ try {
         $stmt->execute();
         $stmt->close();
     } else {
-        // explicit numeric or boolean: if boolean-like (0/1) treat as all/none
         if (!is_int($explicit)) $explicit = (int)$explicit;
         if ($explicit === 1 && $explicit !== 0) {
-            // if user passed 1, treat as mark all served
             $setVal = (int)$curQty;
         } else if ($explicit === 0) {
             $setVal = 0;
         } else {
-            // numeric amount: clamp between 0 and quantity
             $setVal = max(0, min((int)$explicit, (int)$curQty));
         }
         $stmt = $mysqli->prepare('UPDATE order_items SET served = ? WHERE id = ? LIMIT 1');

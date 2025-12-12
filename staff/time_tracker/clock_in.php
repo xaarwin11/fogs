@@ -26,7 +26,6 @@ try {
     
     $today = date('Y-m-d');
 
-    // Prevent double clock-in: check for an open shift (clock_in set, clock_out NULL)
     $stmt = $mysqli->prepare('SELECT id FROM `time_tracking` WHERE user_id = ? AND clock_out IS NULL ORDER BY id DESC LIMIT 1');
     if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
 
@@ -44,7 +43,6 @@ try {
         exit;
     }
 
-    // Insert new time tracking record for this shift (supports multiple shifts per day)
     $now = date('Y-m-d H:i:s');
     $stmt = $mysqli->prepare('INSERT INTO `time_tracking` (user_id, clock_in, date) VALUES (?, ?, ?)');
     if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);

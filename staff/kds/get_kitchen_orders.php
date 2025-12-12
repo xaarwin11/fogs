@@ -20,24 +20,18 @@ $response = ['success' => false, 'orders' => []];
 try {
     $mysqli = get_db_conn();
 
-    // Fetch open orders and associated aggregated items, including served flag
-    // We'll fetch order-level and item-level details and structure them in PHP
-    // Prefer DB-backed hidden flag if available; otherwise use legacy JSON file
+    
     $useDbHidden = false;
     $colRes = $mysqli->query("SHOW COLUMNS FROM `orders` LIKE 'hidden_in_kds'");
     if ($colRes && $colRes->num_rows > 0) {
         $useDbHidden = true;
     }
 
-    // Determine whether the caller wants hidden orders or active ones
+    
     $wantHidden = isset($_GET['hidden']) && ($_GET['hidden'] === '1' || $_GET['hidden'] === 'true');
 
-    // KDS should show orders that still have pending KDS items (quantity > served).
-    // Include paid orders as well (customer may pay first). Orders are
-    // considered complete for KDS only when all KDS items are served.
     $baseCondition = 'p.kds = 1 AND (oi.quantity - oi.served) > 0';
 
-    // Read legacy JSON hidden list if needed
     $hiddenOrders = [];
     $hiddenFile = __DIR__ . '/../kds_hidden.json';
     if (!$useDbHidden && is_readable($hiddenFile)) {
@@ -46,17 +40,15 @@ try {
         if (is_array($arr)) $hiddenOrders = array_map('intval', $arr);
     }
 
-    // Only include items that are flagged for KDS and not yet served
-    // Return quantity and served amounts so KDS can show pending = quantity - served
     $sql = 'SELECT o.id as order_id, o.table_id, o.created_at, o.updated_at, p.id as product_id, p.name as product_name, oi.quantity, oi.id as order_item_id, oi.served FROM orders o JOIN order_items oi ON oi.order_id = o.id JOIN products p ON p.id = oi.product_id WHERE ' . $baseCondition;
 
     if ($wantHidden) {
-        // Return only hidden orders
+    
         if ($useDbHidden) {
             $sql .= ' AND o.hidden_in_kds = 1';
         } else {
             if (empty($hiddenOrders)) {
-                // Nothing hidden, return empty result early
+                
                 header('Content-Type: application/json');
                 echo json_encode(['success' => true, 'orders' => []]);
                 exit;
@@ -65,7 +57,7 @@ try {
             $sql .= ' AND o.id IN (' . $placeholders . ')';
         }
     } else {
-        // Active view: exclude hidden orders when DB flag exists or via JSON
+        
         if ($useDbHidden) {
             $sql .= ' AND (o.hidden_in_kds IS NULL OR o.hidden_in_kds = 0)';
         } elseif (!empty($hiddenOrders)) {

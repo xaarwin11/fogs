@@ -17,9 +17,8 @@ if (!in_array($role, ['staff','admin','manager'])) {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Manage Products</title>
-<link rel="stylesheet" href="/fogssystem/assets/style.css">
+<link rel="stylesheet" href="/fogs/assets/style.css">
 <style>
-/* Small product admin styles */
 .nice-table thead th{ text-align:left; padding:0.6rem 0.6rem; border-bottom:1px solid #eee; color:#333; }
 .nice-table tbody td{ padding:0.5rem 0.6rem; border-bottom:1px solid #fafafa; }
 .products-card button{ margin-left:0.4rem }

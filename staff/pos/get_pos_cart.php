@@ -22,8 +22,7 @@ if (!$table_id) {
 try {
     $mysqli = get_db_conn();
     
-    // Get open orders for this table. Aggregate per product so we return one row per product
-    $stmt = $mysqli->prepare("SELECT MAX(o.id) as order_id, MIN(oi.id) as item_id, p.id as product_id, p.name, COALESCE(oi.price, p.price) as price, SUM(oi.quantity) as quantity, SUM(oi.served) as served
+        $stmt = $mysqli->prepare("SELECT MAX(o.id) as order_id, MIN(oi.id) as item_id, p.id as product_id, p.name, COALESCE(oi.price, p.price) as price, SUM(oi.quantity) as quantity, SUM(oi.served) as served
         FROM `orders` o
         JOIN `order_items` oi ON o.id = oi.order_id
         JOIN `products` p ON oi.product_id = p.id

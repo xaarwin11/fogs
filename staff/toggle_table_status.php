@@ -1,5 +1,4 @@
 <?php
-// Toggle a table's occupied status. Requires staff session.
 require_once __DIR__ . '/../db.php';
 session_start();
 if (empty($_SESSION['user_id'])) {
@@ -20,7 +19,6 @@ $response = ['success' => false];
 try {
     $mysqli = get_db_conn();
 
-    // We'll use the `tables` schema explicitly
     $tableName = 'tables';
     $res = $mysqli->query("SHOW TABLES LIKE 'tables'");
     if (!$res || $res->num_rows === 0) {
@@ -37,7 +35,6 @@ try {
     $id = (int)$id;
     $requestedOccupied = isset($data['occupied']) ? (int)$data['occupied'] : null;
 
-    // Discover primary key column if not standard 'id'
     $pkCol = 'id';
     $pkRes = $mysqli->query("SHOW KEYS FROM `{$tableName}` WHERE Key_name = 'PRIMARY'");
     if ($pkRes && $pkRes->num_rows > 0) {
@@ -45,7 +42,6 @@ try {
         $pkCol = $rowPk['Column_name'] ?? 'id';
     }
 
-    // Try to toggle 'occupied' or 'is_occupied'
     $col = null;
     $check = $mysqli->query("SHOW COLUMNS FROM `{$tableName}` LIKE 'occupied'");
     if ($check && $check->num_rows > 0) $col = 'occupied';
@@ -55,9 +51,7 @@ try {
     $hasStatus = $check && $check->num_rows > 0;
 
     if ($col) {
-        // Toggle or set numeric column
         if ($requestedOccupied !== null) {
-            // Set to specific value
             $stmt = $mysqli->prepare("UPDATE `{$tableName}` SET `{$col}` = ? WHERE `{$pkCol}` = ? LIMIT 1");
             if (!$stmt) throw new Exception($mysqli->error);
             $stmt->bind_param('ii', $requestedOccupied, $id);
@@ -65,14 +59,12 @@ try {
             $stmt->close();
             $isOccupied = (bool)$requestedOccupied;
         } else {
-            // Toggle
             $stmt = $mysqli->prepare("UPDATE `{$tableName}` SET `{$col}` = 1 - `{$col}` WHERE `{$pkCol}` = ? LIMIT 1");
             if (!$stmt) throw new Exception($mysqli->error);
             $stmt->bind_param('i', $id);
             $stmt->execute();
             $stmt->close();
 
-            // fetch new value
             $stmt = $mysqli->prepare("SELECT `{$col}` FROM `{$tableName}` WHERE `{$pkCol}` = ? LIMIT 1");
             $stmt->bind_param('i', $id);
             $stmt->execute();
@@ -84,7 +76,6 @@ try {
         $response['success'] = true;
         $response['is_occupied'] = $isOccupied;
     } elseif ($hasStatus) {
-        // Status-based string toggle: try to map 'occupied'<->'available'
         $stmt = $mysqli->prepare("SELECT `status` FROM `{$tableName}` WHERE `{$pkCol}` = ? LIMIT 1");
         if (!$stmt) throw new Exception($mysqli->error);
         $stmt->bind_param('i', $id);
