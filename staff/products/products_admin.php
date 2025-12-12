@@ -2,12 +2,12 @@
 require_once __DIR__ . '/../../db.php';
 session_start();
 if (empty($_SESSION['user_id'])) {
-    header('Location: /fogs/login.php');
+    header('Location: /index.php');
     exit;
 }
 $role = strtolower($_SESSION['role'] ?? '');
 if (!in_array($role, ['staff','admin','manager'])) {
-    header('Location: /fogs/customer/dashboard.php');
+    header('Location: /index.php');
     exit;
 }
 ?>
@@ -17,7 +17,7 @@ if (!in_array($role, ['staff','admin','manager'])) {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Manage Products</title>
-<link rel="stylesheet" href="/fogs/assets/style.css">
+<link rel="stylesheet" href="/assets/style.css">
 <style>
 .nice-table thead th{ text-align:left; padding:0.6rem 0.6rem; border-bottom:1px solid #eee; color:#333; }
 .nice-table tbody td{ padding:0.5rem 0.6rem; border-bottom:1px solid #fafafa; }

@@ -2,12 +2,12 @@
 require_once __DIR__ . '/../../db.php';
 session_start();
 if (empty($_SESSION['user_id'])) {
-    header('Location: /fogs/login.php');
+    header('Location: /index.php');
     exit;
 }
 $role = strtolower($_SESSION['role'] ?? '');
 if (!in_array($role, ['staff','admin','manager','kitchen'])) {
-    header('Location: /fogs/customer/dashboard.php');
+    header('Location: /index.php');
     exit;
 }
 ?>
@@ -17,7 +17,7 @@ if (!in_array($role, ['staff','admin','manager','kitchen'])) {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Kitchen Display</title>
-    <link rel="stylesheet" href="/fogs/assets/style.css">
+    <link rel="stylesheet" href="/assets/style.css">
     <style>
         .kds-container {
             max-width: 1600px;

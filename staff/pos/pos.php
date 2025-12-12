@@ -3,12 +3,12 @@ require_once __DIR__ . '/../../db.php';
 session_start();
 
 if (empty($_SESSION['user_id'])) {
-    header('Location: /fogs/login.php');
+    header('Location: /index.php');
     exit;
 }
 $role = strtolower($_SESSION['role'] ?? '');
 if (!in_array($role, ['staff','admin','manager'])) {
-    header('Location: /fogs/customer/dashboard.php');
+    header('Location: /index.php');
     exit;
 }
 
@@ -36,7 +36,7 @@ try {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>POS - Point of Sale</title>
-    <link rel="stylesheet" href="/fogs/assets/style.css">
+    <link rel="stylesheet" href="/assets/style.css">
     <style>
         .pos-container { display:grid; grid-template-columns:1fr 300px; gap:1.5rem; max-width:1200px; margin:1.5rem auto; padding:1rem; }
         .products-section { }

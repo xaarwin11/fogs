@@ -1,13 +1,13 @@
 <?php
-require_once __DIR__ . '/..\/db.php';
+require_once __DIR__ . '../db.php';
 session_start();
 if (empty($_SESSION['user_id'])) {
-    header('Location: /fogs/login.php');
+    header('Location: ../login.php');
     exit;
 }
 $role = strtolower($_SESSION['role'] ?? '');
 if (!in_array($role, ['staff','admin','manager'])) {
-    header('Location: /fogs/customer/dashboard.php');
+    header('Location: ../customer/dashboard.php');
     exit;
 }
 
@@ -39,7 +39,7 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard</title>
 
-    <link rel="stylesheet" href="/fogs/assets/style.css">
+    <link rel="stylesheet" href="../assets/style.css">
     </head>
     <body>
         <?php include 'navbar.php'; ?>
@@ -65,7 +65,7 @@ try {
             icon.className = 'table-icon';
             const img = document.createElement('img');
             img.alt = table.is_occupied ? 'Occupied table' : 'Available table';
-            img.src = table.is_occupied ? '/fogs/assets/table-occupied.svg' : '/fogs/assets/table-available.svg';
+            img.src = table.is_occupied ? '../assets/table-occupied.svg' : '../assets/table-available.svg';
             icon.appendChild(img);
 
             

@@ -6,9 +6,9 @@ session_start();
 if (!empty($_SESSION['user_id'])) {
     $role = strtolower($_SESSION['role'] ?? '');
     if (in_array($role, ['staff', 'admin', 'manager'])) {
-        header('Location: /fogs/staff/dashboard_staff.php');
+        header('Location: staff/dashboard_staff.php');
     } else {
-        header('Location: /fogs/customer/dashboard.php');
+        header('Location: customer/dashboard.php');
     }
     exit;
 }
@@ -48,9 +48,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $mysqli->close();
                         $role = strtolower($dbRole ?? '');
                         if (in_array($role, ['staff','admin','manager'])) {
-                            header('Location: /fogs/staff/dashboard_staff.php');
+                            header('Location: staff/dashboard_staff.php');
                         } else {
-                            header('Location: /fogs/customer/dashboard.php');
+                            header('Location: customer/dashboard.php');
                         }
                         exit;
                     } else {
@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
-    <link rel="stylesheet" href="/fogs/assets/style.css">
+    <link rel="stylesheet" href="assets/style.css">
     <style>
         .login-container {
             width: 100%;
@@ -97,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
     <div class="login-container">
-        <img src="/fogs/assets/logo.png" alt="Logo" style="display:block;margin:0 auto 12px;max-width:100px;">
+        <img src="assets/logo.png" alt="Logo" style="display:block;margin:0 auto 12px;max-width:100px;">
         <h2 style="text-align:center;margin:0 0 8px;color:#fff;">Login</h2>
         <form method="POST" action="">
             <br><label for="username">Username</label>

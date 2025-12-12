@@ -3,12 +3,12 @@ session_start();
 require_once __DIR__ . '/../../db.php';
 
 if (empty($_SESSION['user_id'])) {
-    header('Location: /fogs/login.php');
+    header('Location: /index.php');
     exit;
 }
 $role = strtolower($_SESSION['role'] ?? '');
 if (!in_array($role, ['staff','admin','manager'])) {
-    header('Location: /fogs/customer/dashboard.php');
+    header('Location: /index.php');
     exit;
 }
 ?>
@@ -18,7 +18,7 @@ if (!in_array($role, ['staff','admin','manager'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Time Tracking</title>
-    <link rel="stylesheet" href="/fogs/assets/style.css">
+    <link rel="stylesheet" href="/assets/style.css">
     <style>
         .time-tracking-container {
             max-width: 800px;
