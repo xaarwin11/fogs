@@ -1,10 +1,10 @@
 <?php
 date_default_timezone_set('Asia/Manila');
 
-$dbHost = 'sql104.infinityfree.com';
-$dbName = 'if0_40665255_fogssystem';
-$dbUser = 'if0_40665255';
-$dbPass = 'o5uZ7OfketA';
+$dbHost = 'localhost';
+$dbName = 'fogs';
+$dbUser = 'root';
+$dbPass = '';
 
 function get_db_conn(): mysqli {
     global $dbHost, $dbUser, $dbPass, $dbName, $dbPort;
