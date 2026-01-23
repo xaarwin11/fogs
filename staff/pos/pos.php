@@ -36,7 +36,7 @@ try {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>POS - Point of Sale</title>
-    <link rel="stylesheet" href="/assets/style.css">
+    <link rel="stylesheet" href="../../assets/style.css">
     <style>
         .pos-container { display:grid; grid-template-columns:1fr 300px; gap:1.5rem; max-width:1200px; margin:1.5rem auto; padding:1rem; }
         .products-section { }
@@ -383,7 +383,7 @@ try {
         const hasItems = Object.keys(cart).length > 0;
         const shouldBeOccupied = hasItems ? 1 : 0;
         
-            fetch('/fogs/staff/toggle_table_status.php', {
+            fetch('../toggle_table_status.php', {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },

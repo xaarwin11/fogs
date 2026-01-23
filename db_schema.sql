@@ -2,9 +2,9 @@
 -- This script drops and recreates the `fogssystem` database. Run only
 -- when you intend a clean install (it will destroy existing data).
 
-DROP DATABASE IF EXISTS `fogssystem`;
-CREATE DATABASE `fogssystem` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE `fogssystem`;
+DROP DATABASE IF EXISTS `fogs`;
+CREATE DATABASE `fogs` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE `fogs`;
 
 -- Credentials / users table
 CREATE TABLE `credentials` (
