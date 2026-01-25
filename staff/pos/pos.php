@@ -38,42 +38,46 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>POS - Point of Sale</title>
     <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/style.css">
+    
     <style>
-        .pos-container { display:grid; grid-template-columns:1fr 300px; gap:1.5rem; max-width:1200px; margin:1.5rem auto; padding:1rem; }
-        .products-section { }
-        .product-categories { display:flex; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap; }
-        .category-tab { padding:0.5rem 1rem; background:#e8dfd2; color:#333; border:none; border-radius:6px; cursor:pointer; font-weight:600; transition:background 0.2s; }
-        .category-tab.active { background:#6B4226; color:#fff; }
-        .category-tab:hover { background:#7a5a4e; color:#fff; }
-        .products-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:1rem; }
-        .product-card { background:#fff; border-radius:12px; padding:1rem; box-shadow:0 2px 8px rgba(0,0,0,0.07); cursor:pointer; transition:transform 0.2s, box-shadow 0.2s; text-align:center; display:flex; flex-direction:column; justify-content:center; }
-        .product-card:hover { transform:translateY(-4px); box-shadow:0 4px 16px rgba(0,0,0,0.12); }
-        .product-name { font-weight:600; font-size:0.95rem; margin-bottom:0.25rem; }
-        .product-price { font-size:1.2rem; color:#c62828; font-weight:700; margin-bottom:0.5rem; } 
-        .currency { font-size:0.9rem; }
-        .cart-section { background:#fff; border-radius:12px; padding:1.5rem; box-shadow:0 2px 12px rgba(0,0,0,0.07); }
-        .cart-header { font-size:1.3rem; font-weight:700; margin-bottom:1rem; text-align:center; border-bottom:2px solid #6B4226; padding-bottom:0.75rem; }
-        .cart-items { max-height:400px; overflow-y:auto; margin-bottom:1rem; }
-        .cart-item { display:grid; grid-template-columns:1fr auto auto auto; gap:0.5rem; align-items:center; padding:0.75rem 0; border-bottom:1px solid #e0e0e0; font-size:0.9rem; }
-        .item-name { font-weight:600; text-align:left; }
-        .item-qty-input { width:50px; padding:0.4rem; border:1px solid #ccc; border-radius:4px; text-align:center; font-weight:600; font-size:0.9rem; cursor:pointer; }
-        .item-qty-input:hover, .item-qty-input:focus { border-color:#6B4226; background:#f9f9f9; outline:none; }
-        .item-price { font-weight:700; text-align:right; min-width:70px; }
-        .item-remove { background:#e94f4f; color:#fff; border:none; border-radius:4px; padding:0.3rem 0.6rem; cursor:pointer; font-size:0.85rem; font-weight:600; }
-        .item-remove:hover { background:#d63939; }
-        .cart-total { font-size:1.4rem; font-weight:700; text-align:right; padding:1rem 0; border-top:2px solid #6B4226; margin:1rem 0; }
-        .cart-actions { display:flex; gap:0.75rem; flex-direction:column; }
-        .checkout-btn, .save-btn, .clear-btn { padding:0.75rem; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:1rem; transition:background 0.2s; }
-        .checkout-btn { background:#2e7d32; color:#fff; }
-        .checkout-btn:hover { background:#24601e; }
-        .save-btn { background:#1976d2; color:#fff; }
-        .save-btn:hover { background:#0d5aa8; }
-        .clear-btn { background:#e0e0e0; color:#333; }
-        .clear-btn:hover { background:#ccc; }
-        .table-select { margin-bottom:1.5rem; }
-        .table-select select { width:100%; padding:0.75rem; border:1px solid #ccc; border-radius:6px; font-size:1rem; }
-        .empty-cart { text-align:center; color:#999; padding:1rem; }
-        @media (max-width:768px) { .pos-container { grid-template-columns:1fr; } }
+        /* FORCE FIX: Ensure the product section handles the overlay correctly */
+        .products-section {
+            position: relative !important; /* This is crucial for the overlay to sit inside */
+            overflow: hidden; /* Keeps the rounded corners clean */
+        }
+
+        /* The Fog Overlay */
+        .products-overlay {
+            position: absolute;
+            inset: 0; /* Top, Right, Bottom, Left = 0 */
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(3px); /* Makes it look blurry */
+            z-index: 50; /* Higher than everything else in the box */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            color: #555;
+            font-weight: bold;
+            font-size: 1.1rem;
+            text-align: center;
+        }
+
+        .products-overlay span {
+            background: #fff;
+            padding: 10px 20px;
+            border-radius: 50px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border: 1px solid #eee;
+        }
+
+        /* Input Fix: Remove spinners */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
     </style>
 </head>
 <body>
@@ -81,7 +85,16 @@ try {
     
     <div class="pos-container">
         <div class="products-section">
+            <div id="productOverlay" class="products-overlay">
+                <span>Select a table to start</span>
+            </div>
+
             <h2>Menu</h2>
+            <div style="margin-bottom: 1rem;">
+                <input type="text" id="productSearch" placeholder="🔍 Search products..." 
+                       style="width: 90%; padding: 0.75rem; border-radius: 8px; border: 1px solid #ddd;" disabled>
+            </div>
+            
             <div id="categoriesContainer" class="product-categories"></div>
             <div id="productsGrid" class="products-grid"></div>
         </div>
@@ -110,32 +123,61 @@ try {
         </div>
     </div>
 
-    <div id="paymentPopup" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); align-items:center; justify-content:center; z-index:9999;">
-        <div style="background:#fff; border-radius:8px; padding:1rem; width:420px; max-width:95%; box-shadow:0 8px 40px rgba(0,0,0,0.2);">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
-                <div style="font-weight:700">Checkout Payment</div>
-                <button id="pmClose" style="background:transparent;border:1px solid #ddd;padding:0.25rem 0.5rem;border-radius:6px;cursor:pointer;">Close</button>
+    <div id="paymentPopup" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; z-index:9999;">
+    <div style="background:#fff; border-radius:12px; width:450px; max-width:95%; box-shadow:0 10px 50px rgba(0,0,0,0.3); overflow:hidden;">
+        
+        <div style="background:#f8f9fa; padding:1.25rem; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; width:95%;">
+            <h3 style="padding:5px; margin:0; font-size:1.2rem;">Finalize Payment</h3>
+            <button id="pmClose" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#999;">&times;</button>
+        </div>
+
+        <div style="padding:1.5rem; text-align:center;">
+            <div style="text-align:center; margin-bottom:1.5rem;">
+                <div style="color:#666; font-size:0.9rem; text-transform:uppercase; letter-spacing:1px;">Amount Due</div>
+                <div id="pmTotal" style="font-size:2.5rem; font-weight:800; color:#222;">₱0.00</div>
             </div>
-            <div style="margin-bottom:0.5rem;"><strong>Total:</strong> <span id="pmTotal">₱0.00</span></div>
-            <div style="margin-bottom:0.5rem;">
-                <div style="font-weight:600; margin-bottom:0.25rem;">Payment Method</div>
-                <label style="margin-right:0.75rem; display:inline-flex; align-items:center; gap:0.5rem;"><input type="radio" name="pmMethod" id="pmCash" value="cash"> Cash</label>
-                <label style="display:inline-flex; align-items:center; gap:0.5rem;"><input type="radio" name="pmMethod" id="pmGcash" value="gcash"> Gcash</label>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:1.5rem;">
+                <label style="cursor:pointer; border:2px solid #ddd; border-radius:8px; padding:10px; text-align:center; display:block;" id="labelCash">
+                    <input type="radio" name="pmMethod" id="pmCash" value="cash" checked style="display:none;">
+                    <strong>💵 Cash</strong>
+                </label>
+                <label style="cursor:pointer; border:2px solid #ddd; border-radius:8px; padding:10px; text-align:center; display:block;" id="labelGcash">
+                    <input type="radio" name="pmMethod" id="pmGcash" value="gcash" style="display:none;">
+                    <strong>📱 GCash</strong>
+                </label>
             </div>
-            <div style="margin-bottom:0.5rem;"><label>Amount Given</label><br><input id="pmGiven" type="number" min="0" step="0.01" style="width:100%; padding:0.45rem; margin-top:0.25rem;" /></div>
-            <div style="margin-bottom:0.75rem;"><strong>Change:</strong> <span id="pmChange">₱0.00</span></div>
-            <div style="display:flex; gap:0.5rem; justify-content:flex-end;">
-                <button id="pmCancel" class="clear-btn">Cancel</button>
-                <button id="pmConfirm" class="checkout-btn">Confirm & Pay</button>
+
+            <div style="margin-bottom:1rem;">
+                <label style="font-weight:600; color:#444;">Amount Received</label>
+                <input id="pmGiven" type="number" step="0.01" style="width:90%; padding:1rem; font-size:1.5rem; border:2px solid #eee; border-radius:8px; margin-top:5px; text-align:right;" placeholder="0.00">
+            </div>
+
+            <div style="display:flex; gap:8px; margin-bottom:1.5rem; flex-wrap:wrap;">
+                <button type="button" class="quick-cash" onclick="setCash(100)">₱100</button>
+                <button type="button" class="quick-cash" onclick="setCash(200)">₱200</button>
+                <button type="button" class="quick-cash" onclick="setCash(300)">₱300</button>
+                <button type="button" class="quick-cash" onclick="setCash(500)">₱500</button>
+                <button type="button" class="quick-cash" onclick="setCash(1000)">₱1000</button>
+            </div>
+
+            <div style="background:#f1f8e9; padding:1rem; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-weight:600; color:#2e7d32;">CHANGE</span>
+                <span id="pmChange" style="font-size:1.5rem; font-weight:700; color:#2e7d32;">₱0.00</span>
             </div>
         </div>
+
+        <div style="padding:1rem; border-top:1px solid #eee; display:flex; gap:10px;">
+            <button id="pmCancel" style="flex:1; padding:1rem; border-radius:8px; border:1px solid #ddd; background:#fff; cursor:pointer; font-weight:600;">Back</button>
+            <button id="pmConfirm" style="flex:2; padding:1rem; border-radius:8px; border:none; background:#2e7d32; color:#fff; font-size:1rem; font-weight:700; cursor:pointer;">CONFIRM & PAY</button>
+        </div>
+    </div>
     </div>
 
     <script>
     let selectedTableId = null;
     let cart = {};
     let currentOrderId = null;
-    let saveCartTimeout = null;
 
     const tableSelect = document.getElementById('tableSelect');
     const productsGrid = document.getElementById('productsGrid');
@@ -145,11 +187,27 @@ try {
     const checkoutBtn = document.getElementById('checkoutBtn');
     const saveBtn = document.getElementById('saveBtn');
     const clearBtn = document.getElementById('clearBtn');
+    const productOverlay = document.getElementById('productOverlay');
+    const productSearch = document.getElementById('productSearch');
 
     let allProducts = {};
     let currentCategory = null;
 
-    
+    // --- VISUAL LOGIC: Toggle the "Fog" Mask ---
+    function toggleProductLock() {
+        if (!selectedTableId) {
+            // No table selected: SHOW FOG, DISABLE SEARCH
+            productOverlay.style.display = 'flex';
+            productSearch.disabled = true;
+        } else {
+            // Table selected: HIDE FOG, ENABLE SEARCH
+            productOverlay.style.display = 'none';
+            productSearch.disabled = false;
+        }
+    }
+
+    // --- DATA LOGIC ---
+
     function updateOrderTime(orderId) {
         if (!orderId) return;
         fetch('update_order_time.php', {
@@ -157,62 +215,68 @@ try {
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ order_id: orderId })
-        }).then(r => r.json()).then(data => {
-            if (!data.success) console.warn('Failed to update order time:', data.error);
         }).catch(err => console.warn('Failed to update order time:', err));
     }
 
     function saveCart(allowEmpty = false) {
         if (!selectedTableId) {
             alert('Please select a table first');
-            return;
+            return Promise.reject('No table selected');
         }
+
+        // VISUAL FEEDBACK: Disable buttons while saving
+        const btns = [saveBtn, checkoutBtn, clearBtn];
+        const originalText = saveBtn.textContent;
+        btns.forEach(b => b.disabled = true);
+        saveBtn.textContent = "Saving...";
+
         const items = Object.values(cart).map(item => ({
             product_id: item.id,
             quantity: item.qty
         }));
+
         if (items.length === 0 && !allowEmpty) {
+            btns.forEach(b => b.disabled = false);
+            saveBtn.textContent = originalText;
             alert('Cart is empty. Add items before saving.');
-            return;
+            return Promise.reject('Cart empty');
         }
-        console.log('saveCart: sending to server', { table_id: selectedTableId, items: items, allowEmpty: allowEmpty });
-        fetch('save_pos_cart.php', {
+
+        return fetch('save_pos_cart.php', {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ table_id: selectedTableId, items: items })
-        }).then(r => {
-            console.log('saveCart: response status', r.status);
+        })
+        .then(r => {
+            if(r.redirected) window.location.reload(); // Session Expired check
             return r.json();
         })
         .then(data => {
-            console.log('saveCart: response data', data);
             if (data.success) {
                 currentOrderId = data.order_id;
                 updateOrderTime(data.order_id);
-                console.log('Cart saved successfully! Order ID:', data.order_id);
-                if (!allowEmpty) {
-                    alert('Bill saved for Table ' + selectedTableId);
+                if(!allowEmpty) { 
+                    // Optional: alert('Saved!'); 
                 }
+                return data;
             } else {
-                console.error('Save cart error:', data.error);
-                if (!allowEmpty) {
-                    alert('Error saving bill: ' + data.error);
-                }
+                throw new Error(data.error);
             }
         })
         .catch(err => {
             console.error('Failed to save cart:', err);
-            if (!allowEmpty) {
-                alert('Error saving bill');
-            }
+            if (!allowEmpty) alert('Error saving bill: ' + err.message);
+            throw err;
+        })
+        .finally(() => {
+            // ALWAYS Re-enable buttons
+            btns.forEach(b => b.disabled = false);
+            saveBtn.textContent = originalText;
         });
     }
 
-
     function loadCart() {
-        console.log('loadCart: selectedTableId=', selectedTableId);
-        
         if (!selectedTableId) {
             cart = {};
             currentOrderId = null;
@@ -220,20 +284,16 @@ try {
             return;
         }
 
-        console.log('loadCart: fetching cart from server for table', selectedTableId);
-        
         fetch('get_pos_cart.php?table_id=' + encodeURIComponent(selectedTableId), { credentials: 'same-origin' })
             .then(r => {
-                console.log('loadCart: response status', r.status);
+                if(r.redirected) window.location.reload();
                 return r.json();
             })
             .then(data => {
-                console.log('loadCart: response data', data);
                 if (data.success) {
                     currentOrderId = data.order_id;
+                    cart = {};
                     if (data.items && data.items.length > 0) {
-                        
-                        cart = {};
                         data.items.forEach(item => {
                             const itemId = 'product_' + item.product_id;
                             cart[itemId] = {
@@ -243,14 +303,9 @@ try {
                                 qty: item.quantity
                             };
                         });
-                        console.log('loadCart: loaded', Object.keys(cart).length, 'items');
-                    } else {
-                        cart = {};
-                        console.log('loadCart: no items found');
                     }
                     updateCart();
                 } else {
-                    console.error('Load cart error:', data.error);
                     cart = {};
                     currentOrderId = null;
                     updateCart();
@@ -295,23 +350,33 @@ try {
         });
     }
 
+    function createProductCard(product) {
+        const card = document.createElement('div');
+        card.className = 'product-card';
+        card.innerHTML = `
+            <div class="product-name">${product.name}</div>
+            <div class="product-price">₱${parseFloat(product.price).toFixed(2)}</div>
+        `;
+        card.addEventListener('click', () => {
+            // If overlay is active (somehow), stop interaction
+            if (!selectedTableId) return; 
+
+            card.style.transform = "scale(0.95)";
+            setTimeout(() => card.style.transform = "", 100);
+            addToCart(product.id, product.name, product.price);
+        });
+        return card;
+    }
+
     function renderProducts(category) {
         productsGrid.innerHTML = '';
-        (allProducts[category] || []).forEach(product => {
-            const card = document.createElement('div');
-            card.className = 'product-card';
-            card.innerHTML = `
-                <div class="product-name">${product.name}</div>
-                <div class="product-price">₱${product.price.toFixed(2)}</div>
-            `;
-            card.addEventListener('click', () => addToCart(product.id, product.name, product.price));
-            productsGrid.appendChild(card);
+        const items = allProducts[category] || [];
+        items.forEach(product => {
+            productsGrid.appendChild(createProductCard(product));
         });
     }
 
     function addToCart(productId, productName, productPrice) {
-        console.log('addToCart: productId=', productId, ', selectedTableId=', selectedTableId);
-        
         if (!selectedTableId) {
             alert('Please select a table first');
             return;
@@ -322,7 +387,6 @@ try {
         } else {
             cart[itemId] = { id: productId, name: productName, price: productPrice, qty: 1 };
         }
-        console.log('addToCart: cart is now', cart);
         updateCart();
         updateTableStatus();
     }
@@ -343,39 +407,51 @@ try {
             total += lineTotal;
             const row = document.createElement('div');
             row.className = 'cart-item';
+            
+            // Fixed input: type="text" and inputmode="numeric"
             row.innerHTML = `
                 <div class="item-name">${item.name}</div>
-                <input type="number" class="item-qty-input" value="${item.qty}" min="1" data-item-id="${itemId}" onchange="updateQuantity('${itemId}', this.value)">
+                <div class="qty-control">
+                    <button class="qty-btn" onclick="changeQty('${itemId}', -1)">−</button>
+                    <input type="text" inputmode="numeric" class="item-qty-input" value="${item.qty}" readonly>
+                    <button class="qty-btn" onclick="changeQty('${itemId}', 1)">+</button>
+                </div>
                 <div class="item-price">₱${lineTotal.toFixed(2)}</div>
                 <button class="item-remove" onclick="removeFromCart('${itemId}')">×</button>
             `;
             cartItems.appendChild(row);
         });
+        
         if (Object.keys(cart).length === 0) {
             cartItems.innerHTML = '<div class="empty-cart">No items in cart</div>';
         }
         cartTotal.textContent = '₱' + total.toFixed(2);
     }
 
-    function updateQuantity(itemId, newQty) {
-        const qty = parseInt(newQty) || 1;
-        if (qty < 1) {
-            removeFromCart(itemId);
-        } else {
-            cart[itemId].qty = qty;
-            updateCart();
+    function changeQty(itemId, delta) {
+        if (cart[itemId]) {
+            const newQty = cart[itemId].qty + delta;
+            if (newQty > 0) {
+                cart[itemId].qty = newQty;
+                updateCart();
+            } else {
+                if(confirm("Remove " + cart[itemId].name + "?")) {
+                    removeFromCart(itemId);
+                }
+            }
         }
     }
 
     function clearCart() {
         if (!selectedTableId) return;
+        if (Object.keys(cart).length > 0) {
+            if (!confirm("Are you sure you want to clear the whole order?")) return;
+        }
+
         cart = {};
         updateCart();
-        
-        console.log('clearCart: auto-saving empty cart for table', selectedTableId);
         saveCart(true); 
         if (currentOrderId) updateOrderTime(currentOrderId);
-        
         updateTableStatus();
     }
 
@@ -384,13 +460,12 @@ try {
         const hasItems = Object.keys(cart).length > 0;
         const shouldBeOccupied = hasItems ? 1 : 0;
         
-            fetch('../toggle_table_status.php', {
+        fetch('../toggle_table_status.php', {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: selectedTableId, occupied: shouldBeOccupied })
-        }).then(r => r.json())
-        .catch(err => console.error('Failed to update table status:', err));
+        }).catch(err => console.error('Failed to update table status:', err));
     }
 
     function checkout() {
@@ -399,12 +474,9 @@ try {
             return;
         }
         
-        saveCart();
-
-    
-        setTimeout(() => {
+        saveCart().then(() => {
             if (!currentOrderId) {
-                alert('Error: No order found. Please try again.');
+                alert('Error: No order ID generated. Try saving again.');
                 return;
             }
 
@@ -412,26 +484,29 @@ try {
             const pmTotal = document.getElementById('pmTotal');
             const pmGiven = document.getElementById('pmGiven');
             const pmChange = document.getElementById('pmChange');
-            if (!popup || !pmTotal || !pmGiven || !pmChange) {
-                alert('Payment popup not available');
-                return;
-            }
+            
+            if (!popup) return;
 
             const total = Object.values(cart).reduce((s, it) => s + (it.price * it.qty), 0);
             pmTotal.textContent = '₱' + total.toFixed(2);
-            pmGiven.value = total.toFixed(2);
+            pmGiven.value = total.toFixed(2); 
             pmChange.textContent = '₱0.00';
-            const cash = document.getElementById('pmCash'); if (cash) cash.checked = true;
+            
+            const cash = document.getElementById('pmCash'); 
+            if (cash) cash.checked = true;
+            
             popup.style.display = 'flex';
+            pmGiven.focus(); 
+            pmGiven.select();
 
             function computeChange() {
                 const given = parseFloat(pmGiven.value) || 0;
                 const change = Math.max(0, given - total);
                 pmChange.textContent = '₱' + change.toFixed(2);
+                pmChange.style.color = (given >= total) ? '#2e7d32' : '#c62828';
             }
 
-            pmGiven.removeEventListener('input', computeChange);
-            pmGiven.addEventListener('input', computeChange);
+            pmGiven.oninput = computeChange;
 
             document.getElementById('pmCancel').onclick = () => { popup.style.display = 'none'; };
             document.getElementById('pmClose').onclick = () => { popup.style.display = 'none'; };
@@ -440,43 +515,115 @@ try {
                 const sel = document.querySelector('input[name="pmMethod"]:checked');
                 const method = sel ? sel.value : 'cash';
                 const given = parseFloat(pmGiven.value) || 0;
-                if (given + 0.0001 < total) { alert('Amount given is less than total'); return; }
+                
+                if (given + 0.001 < total) { 
+                    alert('Amount given is less than total'); 
+                    return; 
+                }
 
                 fetch('checkout_order.php', {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ order_id: currentOrderId, payment_method: method, amount_paid: given })
+                    body: JSON.stringify({ 
+                        order_id: currentOrderId, 
+                        payment_method: method, 
+                        amount_paid: given 
+                    })
                 }).then(r => r.json()).then(data => {
                     if (data && data.success) {
-                        alert('Payment saved — reference: ' + (data.reference || ''));
+                        alert('Payment Successful!');
                         
                         cart = {};
                         currentOrderId = null;
                         updateCart();
+                        
                         tableSelect.value = '';
                         selectedTableId = null;
+                        
+                        // RE-LOCK the screen
+                        toggleProductLock(); 
+                        
                         popup.style.display = 'none';
                     } else {
-                        alert('Error during payment: ' + (data?.error || 'Unknown'));
+                        alert('Error: ' + (data?.error || 'Unknown error'));
                     }
-                }).catch(err => { console.error('Checkout error', err); alert('Checkout failed'); });
+                }).catch(err => { 
+                    console.error('Checkout error', err); 
+                    alert('Connection failed'); 
+                });
             };
-        }, 500);
+        }).catch(err => {
+            console.log("Checkout stopped due to save error");
+        });
     }
 
     tableSelect.addEventListener('change', (e) => {
         const oldTableId = selectedTableId;
         selectedTableId = parseInt(e.target.value) || null;
-        console.log('Table selected: oldTableId=', oldTableId, ', newTableId=', selectedTableId, ', dropdown value=', e.target.value);
+        
+        toggleProductLock(); // <--- TOGGLE FOG
+        
         loadCart();
     });
 
+    // Clear Logic
     clearBtn.addEventListener('click', clearCart);
     saveBtn.addEventListener('click', saveCart);
     checkoutBtn.addEventListener('click', checkout);
 
+    // Search Logic
+    productSearch.addEventListener('input', (e) => {
+        const term = e.target.value.toLowerCase().trim();
+        if (term === "") {
+            renderProducts(currentCategory);
+            categoriesContainer.style.display = 'flex'; 
+            return;
+        }
+        categoriesContainer.style.display = 'none';
+        productsGrid.innerHTML = '';
+        Object.values(allProducts).forEach(categoryItems => {
+            categoryItems.forEach(product => {
+                if (product.name.toLowerCase().includes(term)) {
+                    productsGrid.appendChild(createProductCard(product));
+                }
+            });
+        });
+        if (productsGrid.innerHTML === '') {
+            productsGrid.innerHTML = '<div style="grid-column: 1/-1; padding: 2rem; color: #999;">No products found.</div>';
+        }
+    });
+
+    // Init
     loadProducts();
+    toggleProductLock(); // Ensure locked on load
+
+        // Function for Quick Cash buttons
+    function setCash(amount) {
+        const pmGiven = document.getElementById('pmGiven');
+        pmGiven.value = amount.toFixed(2);
+        
+        // Manually trigger the "input" event so change is recalculated
+        pmGiven.dispatchEvent(new Event('input'));
+    }
+
+    // Logic to highlight the selected payment method box
+    document.querySelectorAll('input[name="pmMethod"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            // Reset both
+            document.getElementById('labelCash').style.borderColor = '#ddd';
+            document.getElementById('labelGcash').style.borderColor = '#ddd';
+            document.getElementById('labelCash').style.background = '#fff';
+            document.getElementById('labelGcash').style.background = '#fff';
+            
+            // Highlight selected
+            if(this.checked) {
+                const label = this.closest('label');
+                label.style.borderColor = '#2e7d32';
+                label.style.background = '#f1f8e9';
+            }
+        });
+    });
     </script>
 </body>
 </html>
