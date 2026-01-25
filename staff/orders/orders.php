@@ -1,13 +1,14 @@
 <?php
+$base_url = "/fogs-1";
 require_once __DIR__ . '/../../db.php';
 session_start();
 if (empty($_SESSION['user_id'])) {
-    header('Location: /index.php');
+    header("Location: $base_url/index.php");
     exit;
 }
 $role = strtolower($_SESSION['role'] ?? '');
 if (!in_array($role, ['staff','admin','manager'])) {
-    header('Location: /index.php');
+    header("Location: $base_url/index.php");
     exit;
 }
 
@@ -52,7 +53,7 @@ $checkedUsers = array_keys($checkedUsers);
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Orders</title>
-    <link rel="stylesheet" href="/assets/style.css">
+    <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/style.css">
     <style>table { width:100%; border-collapse:collapse } th,td { padding:0.5rem; border-bottom:1px solid #eee; }</style>
 </head>
 <body>

@@ -319,3 +319,133 @@ body .container { display:block; margin-top: 1.2rem; }
         gap: 1rem;
     }
 }
+
+/* POS Page - EXACT PORT FROM PHP */
+.pos-container { display:grid; grid-template-columns:1fr 300px; gap:3rem; max-width:1200px; margin:2rem auto; padding:1rem; }
+.products-section {padding-right: 1rem; border-right: 1px solid #eee; }
+.product-categories { display:flex; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap; }
+.category-tab { padding:0.5rem 1rem; background:#e8dfd2; color:#333; border:none; border-radius:6px; cursor:pointer; font-weight:600; transition:background 0.2s; }
+.category-tab.active { background:#6B4226; color:#fff; }
+.category-tab:hover { background:#7a5a4e; color:#fff; }
+.products-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:1rem; }
+.product-card { background:#fff; border-radius:12px; padding:1rem; box-shadow:0 2px 8px rgba(0,0,0,0.07); cursor:pointer; transition:transform 0.2s, box-shadow 0.2s; text-align:center; display:flex; flex-direction:column; justify-content:center; }
+.product-card:hover { transform:translateY(-4px); box-shadow:0 4px 16px rgba(0,0,0,0.12); }
+.product-name { font-weight:600; font-size:0.95rem; margin-bottom:0.25rem; }
+.product-price { font-size:1.2rem; color:#c62828; font-weight:700; margin-bottom:0.5rem; } 
+.currency { font-size:0.9rem; }
+.cart-section { background:#fff; border-radius:12px; padding:1.5rem; box-shadow:0 2px 12px rgba(0,0,0,0.07); }
+.cart-header { font-size:1.3rem; font-weight:700; margin-bottom:1rem; text-align:center; border-bottom:2px solid #6B4226; padding-bottom:0.75rem; }
+.cart-items { max-height:400px; overflow-y:auto; margin-bottom:1rem; }
+
+/* THE CART ROW */
+.cart-item { display:grid !important; grid-template-columns:1fr auto auto auto !important; gap:0.5rem !important; align-items:center !important; padding:0.75rem 0 !important; border-bottom:1px solid #e0e0e0 !important; font-size:0.9rem !important; }
+
+.item-name { font-weight:600; text-align:left; }
+
+/* THE INPUT - FORCING YOUR EXACT 50px WIDTH */
+.item-qty-input { width:50px !important; height:auto !important; min-height: 0 !important; padding:0.4rem !important; border:1px solid #ccc !important; border-radius:4px !important; text-align:center !important; font-weight:600 !important; font-size:0.9rem !important; cursor:pointer !important; display: inline-block !important; }
+
+.item-qty-input:hover, .item-qty-input:focus { border-color:#6B4226; background:#f9f9f9; outline:none; }
+.item-price { font-weight:700; text-align:right; min-width:70px; }
+.item-remove { background:#e94f4f; color:#fff; border:none; border-radius:4px; padding:0.3rem 0.6rem; cursor:pointer; font-size:0.85rem; font-weight:600; }
+.item-remove:hover { background:#d63939; }
+.cart-total { font-size:1.4rem; font-weight:700; text-align:right; padding:1rem 0; border-top:2px solid #6B4226; margin:1rem 0; }
+.cart-actions { display:flex; gap:0.75rem; flex-direction:column; }
+.checkout-btn, .save-btn, .clear-btn { padding:0.75rem; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:1rem; transition:background 0.2s; }
+.checkout-btn { background:#2e7d32; color:#fff; }
+.checkout-btn:hover { background:#24601e; }
+.save-btn { background:#1976d2; color:#fff; }
+.save-btn:hover { background:#0d5aa8; }
+.clear-btn { background:#e0e0e0; color:#333; }
+.clear-btn:hover { background:#ccc; }
+.table-select { margin-bottom:1.5rem; }
+.table-select select { width:100%; padding:0.75rem; border:1px solid #ccc; border-radius:6px; font-size:1rem; }
+.empty-cart { text-align:center; color:#999; padding:1rem; }
+
+@media (max-width:768px) { .pos-container { grid-template-columns:1fr; } }
+
+/* =========================================
+   QUANTITY BUTTONS FIX (Compact Version)
+   ========================================= */
+
+.qty-control {
+    display: inline-flex !important; /* Forces side-by-side layout */
+    align-items: center !important;
+    border: 1px solid #ccc !important;
+    border-radius: 4px !important;
+    overflow: hidden !important;
+    background: #fff !important;
+    height: 28px !important; /* COMPACT HEIGHT */
+}
+
+.qty-btn {
+    background: #6B4226 !important;
+    color: #fff !important;
+    border: none !important;
+    width: 26px !important;
+    height: 28px !important; /* Matches container */
+    cursor: pointer !important;
+    font-weight: bold !important;
+    font-size: 1rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+    transition: background 0.2s !important;
+}
+
+.qty-btn:hover {
+    background: #55321f !important;
+}
+
+/* Adjusting your existing input to fit between buttons */
+.cart-item .item-qty-input {
+    width: 35px !important; 
+    height: 28px !important; /* Matches container */
+    min-height: 0 !important; /* CRITICAL: Kills the 42px global rule */
+    padding: 0 !important; /* Removes fat padding */
+    border: none !important; 
+    border-radius: 0 !important;
+    margin: 0 !important;
+    text-align: center !important;
+    font-weight: 700 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+/* Add this for the blocked state */
+.products-section {
+    position: relative; /* Needed for the overlay */
+}
+.products-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(2px);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #555;
+    border-radius: 8px;
+}
+
+/* Add this to your style section */
+.quick-cash {
+    flex: 1;
+    min-width: 60px;
+    padding: 8px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
+.quick-cash:hover { background: #e9ecef; }
+
+/* Visual feedback for Payment Method */
+input[name="pmMethod"]:checked + strong { color: #2e7d32; }
+input[name="pmMethod"]:checked + strong::before { content: '✔ '; }

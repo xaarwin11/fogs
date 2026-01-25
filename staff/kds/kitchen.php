@@ -1,13 +1,14 @@
 <?php
+$base_url = "/fogs-1";
 require_once __DIR__ . '/../../db.php';
 session_start();
 if (empty($_SESSION['user_id'])) {
-    header('Location: /index.php');
+    header("Location: $base_url/index.php");
     exit;
 }
 $role = strtolower($_SESSION['role'] ?? '');
 if (!in_array($role, ['staff','admin','manager','kitchen'])) {
-    header('Location: /index.php');
+    header("Location: $base_url/index.php");
     exit;
 }
 ?>
@@ -17,7 +18,7 @@ if (!in_array($role, ['staff','admin','manager','kitchen'])) {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Kitchen Display</title>
-    <link rel="stylesheet" href="/assets/style.css">
+    <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/style.css">
     <style>
         .kds-container {
             max-width: 1600px;
@@ -293,16 +294,6 @@ if (!in_array($role, ['staff','admin','manager','kitchen'])) {
     let poll = setInterval(fetchKitchenOrders, 6000);
     document.getElementById('manualRefresh').addEventListener('click', fetchKitchenOrders);
 
-    const tabActive = document.getElementById('tabActive');
-    const tabHidden = document.getElementById('tabHidden');
-    function setActiveTab(hidden) {
-        currentHiddenView = !!hidden;
-        tabActive.classList.toggle('active', !currentHiddenView);
-        tabHidden.classList.toggle('active', currentHiddenView);
-        fetchKitchenOrders();
-    }
-    tabActive.addEventListener('click', () => setActiveTab(false));
-    tabHidden.addEventListener('click', () => setActiveTab(true));
 </script>
 </body>
 </html>
