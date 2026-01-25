@@ -20,6 +20,8 @@ $baseUrl = substr($scriptDir, 0, strpos($scriptDir, '/staff'));
 <nav>
     <div class="nav-left">
         <span class="brand">FOGSTASA'S CAFE</span>
+        <label for="menu-toggle" class="burger">&#9776;</label>
+        <input type="checkbox" id="menu-toggle">
         <div class="nav-links">
             <?php if (in_array($role, ['staff','admin','manager'])): ?>
                 <a href="<?php echo $baseUrl; ?>/staff/dashboard_staff.php">Dashboard</a>
@@ -28,6 +30,7 @@ $baseUrl = substr($scriptDir, 0, strpos($scriptDir, '/staff'));
                 <a href="<?php echo $baseUrl; ?>/staff/time_tracker/time_tracking.php">Time Tracking</a>
                 <a href="<?php echo $baseUrl; ?>/staff/products/products_admin.php">Products</a>
                 <a href="<?php echo $baseUrl; ?>/staff/kds/kitchen.php">Kitchen Display</a>
+                <a href="<?php echo $baseUrl; ?>/logout.php" class="logout-mobile">Logout</a> </div>
             <?php endif; ?>
         </div>
     </div>

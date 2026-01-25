@@ -362,20 +362,15 @@ body .container { display:block; margin-top: 1.2rem; }
 .table-select select { width:100%; padding:0.75rem; border:1px solid #ccc; border-radius:6px; font-size:1rem; }
 .empty-cart { text-align:center; color:#999; padding:1rem; }
 
-@media (max-width:768px) { .pos-container { grid-template-columns:1fr; } }
-
-/* =========================================
-   QUANTITY BUTTONS FIX (Compact Version)
-   ========================================= */
-
+/* QUANTITY BUTTONS FIX */
 .qty-control {
-    display: inline-flex !important; /* Forces side-by-side layout */
+    display: inline-flex !important;
     align-items: center !important;
     border: 1px solid #ccc !important;
     border-radius: 4px !important;
     overflow: hidden !important;
     background: #fff !important;
-    height: 28px !important; /* COMPACT HEIGHT */
+    height: 28px !important;
 }
 
 .qty-btn {
@@ -383,69 +378,146 @@ body .container { display:block; margin-top: 1.2rem; }
     color: #fff !important;
     border: none !important;
     width: 26px !important;
-    height: 28px !important; /* Matches container */
+    height: 28px !important;
     cursor: pointer !important;
-    font-weight: bold !important;
-    font-size: 1rem !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    padding: 0 !important;
-    line-height: 1 !important;
-    transition: background 0.2s !important;
+    font-weight: bold;
 }
 
-.qty-btn:hover {
-    background: #55321f !important;
-}
-
-/* Adjusting your existing input to fit between buttons */
 .cart-item .item-qty-input {
     width: 35px !important; 
-    height: 28px !important; /* Matches container */
-    min-height: 0 !important; /* CRITICAL: Kills the 42px global rule */
-    padding: 0 !important; /* Removes fat padding */
+    height: 28px !important;
+    min-height: 0 !important;
+    padding: 0 !important;
     border: none !important; 
     border-radius: 0 !important;
     margin: 0 !important;
     text-align: center !important;
     font-weight: 700 !important;
     background: transparent !important;
-    box-shadow: none !important;
 }
 
-/* Add this for the blocked state */
-.products-section {
-    position: relative; /* Needed for the overlay */
-}
+/* BLOCKED STATE OVERLAY */
+.products-section { position: relative; }
 .products-overlay {
     position: absolute;
     inset: 0;
     background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(2px);
     z-index: 10;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: #555;
-    border-radius: 8px;
 }
 
-/* Add this to your style section */
-.quick-cash {
-    flex: 1;
-    min-width: 60px;
-    padding: 8px;
-    background: #f8f9fa;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: 600;
-}
-.quick-cash:hover { background: #e9ecef; }
+/* QUICK CASH */
+.quick-cash { flex: 1; padding: 8px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-weight: 600; }
 
-/* Visual feedback for Payment Method */
-input[name="pmMethod"]:checked + strong { color: #2e7d32; }
-input[name="pmMethod"]:checked + strong::before { content: '✔ '; }
+/* =========================================
+   MOBILE FIXES (CLEAN & COMPACT)
+   ========================================= */
+@media (max-width: 850px) {
+    html, body {
+        overflow-x: hidden;
+        position: relative;
+    }
+
+    /* 1. Navbar: Tighten the height and padding */
+    nav {
+        padding: 0.5rem 0.75rem !important; 
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        min-height: 50px;
+    }
+
+    /* Shrink the Brand Title */
+    .brand {
+        font-size: 17px !important;
+        white-space: nowrap;
+    }
+
+    /* 2. User Info & Burger Group (Right Side) */
+    .nav-right {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important; /* Closer together */
+        order: 2;
+    }
+
+    /* Shrink Username & Online Marker */
+    .nav-user {
+        font-size: 0.75rem !important;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    /* HIDE the Logout button from the main bar */
+    .nav-right .logout {
+        display: none !important;
+    }
+
+    /* Burger Icon - Smaller */
+    .burger {
+        display: block !important;
+        font-size: 20px;
+        cursor: pointer;
+        color: white;
+        padding-left: 5px;
+    }
+
+    #menu-toggle { display: none; }
+
+    /* 3. The Dropdown Menu */
+    .nav-links {
+        display: none !important;
+        position: absolute;
+        top: 50px; /* Matches the new slim header */
+        left: 0;
+        width: 100%;
+        background: #6B4226;
+        flex-direction: column !important;
+        padding: 0 !important;
+        z-index: 1000;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+
+    #menu-toggle:checked ~ .nav-links {
+        display: flex !important;
+    }
+
+    .nav-links a {
+        width: 100%;
+        text-align: left;
+        padding: 12px 20px !important;
+        font-size: 0.9rem;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        box-sizing: border-box;
+    }
+
+    /* FORCE the logout link to show up in the Burger menu */
+    /* Note: Ensure your HTML has the logout <a> tag inside the .nav-links div too */
+    .nav-links a.logout-mobile {
+        display: block !important;
+        background: rgba(0,0,0,0.2);
+        color: #ffcfcf;
+    }
+
+    /* 4. POS & Grid Fixes */
+    .pos-container { 
+        display: block !important; 
+        padding: 10px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    .products-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
+    .cart-section { width: 100% !important; margin-top: 15px !important; box-sizing: border-box !important; }
+    .table-grid { grid-template-columns: 1fr !important; }
+}
+
+/* Ensure burger is hidden on PC */
+@media (min-width: 851px) {
+    .burger, #menu-toggle {
+        display: none !important;
+    }
+}
