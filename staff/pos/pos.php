@@ -277,45 +277,46 @@ try {
     }
 
     function loadCart() {
-        if (!selectedTableId) {
-            cart = {};
-            currentOrderId = null;
-            updateCart();
-            return;
-        }
+    if (!selectedTableId) {
+        cart = {};
+        currentOrderId = null;
+        updateCart();
+        return;
+    }
 
-        fetch('get_pos_cart.php?table_id=' + encodeURIComponent(selectedTableId), { credentials: 'same-origin' })
-            .then(r => {
-                if(r.redirected) window.location.reload();
-                return r.json();
-            })
-            .then(data => {
-                if (data.success) {
-                    currentOrderId = data.order_id;
-                    cart = {};
-                    if (data.items && data.items.length > 0) {
-                        data.items.forEach(item => {
-                            const itemId = 'product_' + item.product_id;
-                            cart[itemId] = {
-                                id: item.product_id,
-                                name: item.name,
-                                price: item.price,
-                                qty: item.quantity
-                            };
-                        });
-                    }
-                    updateCart();
-                } else {
-                    cart = {};
-                    currentOrderId = null;
-                    updateCart();
-                }
-            })
-            .catch(err => {
-                console.error('Failed to load cart:', err);
+    fetch('get_pos_cart.php?table_id=' + encodeURIComponent(selectedTableId), { credentials: 'same-origin' })
+        .then(r => {
+            if(r.redirected) window.location.reload();
+            return r.json();
+        })
+        .then(data => {
+            if (data.success) {
+                currentOrderId = data.order_id;
                 cart = {};
+                if (data.items && data.items.length > 0) {
+                    data.items.forEach(item => {
+                        const itemId = 'product_' + item.product_id;
+                        cart[itemId] = {
+                            id: item.product_id,
+                            name: item.name,
+                            price: item.price,
+                            qty: item.quantity,
+                            served: item.served || 0 // <--- CRITICAL: Save served count
+                        };
+                    });
+                }
                 updateCart();
-            });
+            } else {
+                cart = {};
+                currentOrderId = null;
+                updateCart();
+            }
+        })
+        .catch(err => {
+            console.error('Failed to load cart:', err);
+            cart = {};
+            updateCart();
+        });
     }
 
     function loadProducts() {
@@ -392,11 +393,20 @@ try {
     }
 
     function removeFromCart(itemId) {
+    if (cart[itemId]) {
+        const servedCount = parseInt(cart[itemId].served) || 0;
+
+        if (servedCount > 0) {
+            alert(`🛑 Action Denied: This item has already been served (${servedCount} portions). You cannot remove it from the bill.`);
+            return; // Prevent deletion
+        }
+
         delete cart[itemId];
         updateCart();
         if (Object.keys(cart).length === 0) {
             updateTableStatus();
         }
+    }
     }
 
     function updateCart() {
@@ -407,10 +417,12 @@ try {
             total += lineTotal;
             const row = document.createElement('div');
             row.className = 'cart-item';
-            
-            // Fixed input: type="text" and inputmode="numeric"
+            // Inside updateCart() loop
+            const servedCount = item.served || 0;
+            const statusLabel = servedCount > 0 ? `<br><small style="color:red;">Served: ${servedCount}</small>` : '';
+
             row.innerHTML = `
-                <div class="item-name">${item.name}</div>
+                <div class="item-name">${item.name}${statusLabel}</div>
                 <div class="qty-control">
                     <button class="qty-btn" onclick="changeQty('${itemId}', -1)">−</button>
                     <input type="text" inputmode="numeric" class="item-qty-input" value="${item.qty}" readonly>
@@ -429,17 +441,28 @@ try {
     }
 
     function changeQty(itemId, delta) {
-        if (cart[itemId]) {
-            const newQty = cart[itemId].qty + delta;
-            if (newQty > 0) {
-                cart[itemId].qty = newQty;
-                updateCart();
-            } else {
-                if(confirm("Remove " + cart[itemId].name + "?")) {
-                    removeFromCart(itemId);
-                }
+    if (cart[itemId]) {
+        const item = cart[itemId];
+        const newQty = item.qty + delta;
+        
+        // Use 0 if 'served' isn't loaded yet
+        const servedCount = item.served || 0;
+
+        // ERROR CATCHER: Prevent reduction below served count
+        if (delta < 0 && newQty < servedCount) {
+            alert(`Action Denied: ${servedCount} portion(s) of ${item.name} have already been served to the table.`);
+            return; // Stop the function here
+        }
+
+        if (newQty > 0) {
+            item.qty = newQty;
+            updateCart();
+        } else {
+            if(confirm("Remove " + item.name + "?")) {
+                removeFromCart(itemId);
             }
         }
+    }
     }
 
     function clearCart() {

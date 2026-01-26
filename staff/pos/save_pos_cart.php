@@ -24,102 +24,71 @@ if (!$table_id) {
 
 try {
     $mysqli = get_db_conn();
-    
-    error_log('save_pos_cart: table_id=' . $table_id . ', items count=' . count($items));
-    
+    $mysqli->begin_transaction();
+
+    // 1. Get or Create Order
     $stmt = $mysqli->prepare('SELECT id FROM `orders` WHERE table_id = ? AND status != "paid" LIMIT 1');
-    if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
-    
     $stmt->bind_param('i', $table_id);
     $stmt->execute();
-    $res = $stmt->get_result();
-    $existing_order = $res->fetch_assoc();
-    $res->free();
+    $existing_order = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    
-    error_log('save_pos_cart: existing_order=' . ($existing_order ? $existing_order['id'] : 'none'));
-    
-    $order_id = null;
-    if ($existing_order) {
-        $order_id = (int)$existing_order['id'];
-    } else {
-        $status = 'open';
-        $stmt = $mysqli->prepare('INSERT INTO `orders` (table_id, status) VALUES (?, ?)');
-        if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
-        
-        $stmt->bind_param('is', $table_id, $status);
+
+    $order_id = $existing_order ? (int)$existing_order['id'] : null;
+    if (!$order_id) {
+        $stmt = $mysqli->prepare('INSERT INTO `orders` (table_id, status) VALUES (?, "open")');
+        $stmt->bind_param('i', $table_id);
         $stmt->execute();
         $order_id = $mysqli->insert_id;
         $stmt->close();
     }
-    
-    if (!$order_id) {
-        throw new Exception('Failed to get or create order');
-    }
-    
-     $existingMap = [];
-    $res = $mysqli->query('SELECT product_id, quantity, served, price FROM order_items WHERE order_id = ' . intval($order_id));
-    if ($res) {
-        while ($r = $res->fetch_assoc()) {
-            $pid = intval($r['product_id']);
-           
-            if (!isset($existingMap[$pid])) {
-                $existingMap[$pid] = ['quantity' => 0, 'served' => 0, 'price' => null];
-            }
-            $existingMap[$pid]['quantity'] += intval($r['quantity']);
-            $existingMap[$pid]['served'] += intval($r['served']);
-            if ($r['price'] !== null) $existingMap[$pid]['price'] = (float)$r['price'];
-        }
-        $res->free();
-    }
 
-      $stmt = $mysqli->prepare('DELETE FROM `order_items` WHERE order_id = ?');
-    if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
-    $stmt->bind_param('i', $order_id);
-    $stmt->execute();
-    $stmt->close();
+    // 2. SMART SAVE: Use UPSERT
+    // This updates the quantity if the item exists, but LEAVES the 'served' count alone.
+    $upsertStmt = $mysqli->prepare("
+        INSERT INTO `order_items` (order_id, product_id, quantity, price, served) 
+        VALUES (?, ?, ?, (SELECT price FROM products WHERE id = ?), 0)
+        ON DUPLICATE KEY UPDATE quantity = VALUES(quantity)
+    ");
 
-        $productPrices = [];
-    $productIds = array_values(array_unique(array_filter(array_map(function($it){ return intval($it['product_id'] ?? 0); }, $items))));
-    if (count($productIds) > 0) {
-        $in = implode(',', array_map('intval', $productIds));
-        $res = $mysqli->query('SELECT id, price FROM products WHERE id IN (' . $in . ')');
-        if ($res) {
-            while ($r = $res->fetch_assoc()) {
-                $productPrices[intval($r['id'])] = (float)$r['price'];
-            }
-            $res->free();
-        }
-    }
-
-    
-    $newQuantities = [];
+    $active_pids = [];
     foreach ($items as $item) {
-        $pid = intval($item['product_id'] ?? 0);
-        $qty = intval($item['quantity'] ?? 0);
+        $pid = intval($item['product_id']);
+        $qty = intval($item['quantity']);
         if ($pid <= 0 || $qty <= 0) continue;
-        if (!isset($newQuantities[$pid])) $newQuantities[$pid] = 0;
-        $newQuantities[$pid] += $qty;
+
+        // NEW: SAFETY CHECK
+        $check = $mysqli->prepare("SELECT served, quantity FROM order_items WHERE order_id = ? AND product_id = ?");
+        $check->bind_param('ii', $order_id, $pid);
+        $check->execute();
+        $res = $check->get_result()->fetch_assoc();
+        $check->close();
+
+        if ($res && $qty < (int)$res['served']) {
+            // Throw an error if they try to save a quantity less than what was served
+            throw new Exception("Cannot reduce quantity for product ID $pid. " . $res['served'] . " items already served.");
+        }
+
+        $active_pids[] = $pid;
+        $upsertStmt->bind_param('iiii', $order_id, $pid, $qty, $pid);
+        $upsertStmt->execute();
+    }
+    
+    $upsertStmt->close();
+
+    // 3. REMOVE items deleted from cart ONLY if served = 0
+    if (!empty($active_pids)) {
+        $pid_list = implode(',', $active_pids);
+        $mysqli->query("DELETE FROM `order_items` 
+                        WHERE order_id = $order_id 
+                        AND product_id NOT IN ($pid_list) 
+                        AND served = 0");
     }
 
-        $ins = $mysqli->prepare('INSERT INTO `order_items` (order_id, product_id, quantity, served, price) VALUES (?, ?, ?, ?, ?)');
-    if (!$ins) throw new Exception('Prepare failed: ' . $mysqli->error);
-    foreach ($newQuantities as $product_id => $quantity) {
-        $prevServed = isset($existingMap[$product_id]) ? intval($existingMap[$product_id]['served']) : 0;
-        $servedVal = min($prevServed, $quantity);
-        $priceVal = isset($productPrices[$product_id]) ? $productPrices[$product_id] : (isset($existingMap[$product_id]['price']) ? $existingMap[$product_id]['price'] : 0.0);
-        $ins->bind_param('iiiid', $order_id, $product_id, $quantity, $servedVal, $priceVal);
-        $ins->execute();
-    }
-    $ins->close();
-    
-    echo json_encode([
-        'success' => true,
-        'order_id' => $order_id,
-        'table_id' => $table_id,
-        'items_saved' => count($items)
-    ]);
+    $mysqli->commit();
+    echo json_encode(['success' => true, 'order_id' => $order_id]);
+
 } catch (Exception $ex) {
+    $mysqli->rollback();
     error_log('save_pos_cart error: ' . $ex->getMessage());
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => $ex->getMessage()]);

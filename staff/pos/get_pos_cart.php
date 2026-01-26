@@ -37,14 +37,15 @@ try {
     $items = [];
     $order_id = null;
     while ($row = $res->fetch_assoc()) {
-        $order_id = $row['order_id'];
-        $items[] = [
-            'item_id' => (int)$row['item_id'],
-            'product_id' => (int)$row['product_id'],
-            'name' => $row['name'],
-            'price' => (float)$row['price'],
-            'quantity' => (int)$row['quantity']
-        ];
+    $order_id = $row['order_id'];
+    $items[] = [
+        'item_id' => (int)$row['item_id'],
+        'product_id' => (int)$row['product_id'],
+        'name' => $row['name'],
+        'price' => (float)$row['price'],
+        'quantity' => (int)$row['quantity'],
+        'served' => (int)$row['served'] // <--- This is the key!
+    ];
     }
     $res->free();
     $stmt->close();
