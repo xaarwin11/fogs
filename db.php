@@ -7,9 +7,13 @@ $dbUser = 'root';
 $dbPass = '';
 
 function get_db_conn(): mysqli {
-    global $dbHost, $dbUser, $dbPass, $dbName, $dbPort;
+    global $dbHost, $dbUser, $dbPass, $dbName;
 
-    $mysqli = new mysqli($dbHost, $dbUser, $dbPass, $dbName, $dbPort);
+    $mysqli = mysqli_init(); // Initialize the object first
+    $mysqli->options(MYSQLI_OPT_CONNECT_TIMEOUT, 2); // ONLY wait 2 seconds
+
+    // Now try to connect
+    $mysqli->real_connect($dbHost, $dbUser, $dbPass, $dbName);
 
     if ($mysqli->connect_errno) {
         error_log('MySQL connect error: ' . $mysqli->connect_error);
@@ -19,4 +23,3 @@ function get_db_conn(): mysqli {
     $mysqli->set_charset('utf8mb4');
     return $mysqli;
 }
-?>

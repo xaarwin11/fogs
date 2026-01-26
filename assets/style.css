@@ -408,6 +408,10 @@ body .container { display:block; margin-top: 1.2rem; }
     justify-content: center;
 }
 
+/* Hide the mobile-specific logout link on PC */
+.nav-links a.logout-mobile {
+    display: none !important;
+}
 /* QUICK CASH */
 .quick-cash { flex: 1; padding: 8px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-weight: 600; }
 
