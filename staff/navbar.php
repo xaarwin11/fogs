@@ -26,7 +26,7 @@ $baseUrl = substr($scriptDir, 0, strpos($scriptDir, '/staff'));
             <?php if (in_array($role, ['staff','admin','manager'])): ?>
                 <a href="<?php echo $baseUrl; ?>/staff/dashboard_staff.php">Dashboard</a>
                 <a href="<?php echo $baseUrl; ?>/staff/pos/pos.php">POS</a>
-                <a href="<?php echo $baseUrl; ?>/staff/orders/orders.php">Orders</a>
+                <a href="<?php echo $baseUrl; ?>/staff/sales/sales.php">Sales</a>
                 <a href="<?php echo $baseUrl; ?>/staff/time_tracker/time_tracking.php">Time Tracking</a>
                 <a href="<?php echo $baseUrl; ?>/staff/products/products_admin.php">Products</a>
                 <a href="<?php echo $baseUrl; ?>/staff/kds/kitchen.php">Kitchen Display</a>

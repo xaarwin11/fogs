@@ -22,44 +22,53 @@ if (!$table_id) {
 try {
     $mysqli = get_db_conn();
     
-        $stmt = $mysqli->prepare("SELECT MAX(o.id) as order_id, MIN(oi.id) as item_id, p.id as product_id, p.name, COALESCE(oi.price, p.price) as price, SUM(oi.quantity) as quantity, SUM(oi.served) as served
-        FROM `orders` o
-        JOIN `order_items` oi ON o.id = oi.order_id
-        JOIN `products` p ON oi.product_id = p.id
-        WHERE o.table_id = ? AND o.status != 'paid'
-        GROUP BY p.id, p.name, COALESCE(oi.price, p.price)");
-    if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
-    
+    // Step 1: Find if there is an open order for this table
+    $stmt = $mysqli->prepare("SELECT id FROM `orders` WHERE table_id = ? AND status != 'paid' LIMIT 1");
     $stmt->bind_param('i', $table_id);
     $stmt->execute();
-    $res = $stmt->get_result();
-    
-    $items = [];
-    $order_id = null;
-    while ($row = $res->fetch_assoc()) {
-    $order_id = $row['order_id'];
-    $items[] = [
-        'item_id' => (int)$row['item_id'],
-        'product_id' => (int)$row['product_id'],
-        'name' => $row['name'],
-        'price' => (float)$row['price'],
-        'quantity' => (int)$row['quantity'],
-        'served' => (int)$row['served'] // <--- This is the key!
-    ];
-    }
-    $res->free();
+    $order_res = $stmt->get_result()->fetch_assoc();
     $stmt->close();
+
+    $order_id = $order_res ? (int)$order_res['id'] : null;
+    $items = [];
+
+    // Step 2: If an order exists, get the items (if any)
+    if ($order_id) {
+        $stmt = $mysqli->prepare("
+            SELECT oi.id as item_id, p.id as product_id, p.name, 
+                   COALESCE(oi.price, p.price) as price, 
+                   oi.quantity, oi.served
+            FROM `order_items` oi
+            JOIN `products` p ON oi.product_id = p.id
+            WHERE oi.order_id = ?
+        ");
+        $stmt->bind_param('i', $order_id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        
+        while ($row = $res->fetch_assoc()) {
+            $items[] = [
+                'item_id'    => (int)$row['item_id'],
+                'product_id' => (int)$row['product_id'],
+                'name'       => $row['name'],
+                'price'      => (float)$row['price'],
+                'quantity'   => (int)$row['quantity'],
+                'served'     => (int)$row['served']
+            ];
+        }
+        $stmt->close();
+    }
     
     echo json_encode([
-        'success' => true,
-        'order_id' => $order_id ? (int)$order_id : null,
+        'success'  => true,
+        'order_id' => $order_id,
         'table_id' => (int)$table_id,
-        'items' => $items
+        'items'    => $items
     ]);
-} catch (Exception $ex) {
-    error_log('get_pos_cart error: ' . $ex->getMessage());
+} catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => $ex->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
+    exit;
 }
 
 $mysqli->close();

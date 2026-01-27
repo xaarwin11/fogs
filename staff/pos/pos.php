@@ -38,7 +38,7 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>POS - Point of Sale</title>
     <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/style.css">
-    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         /* FORCE FIX: Ensure the product section handles the overlay correctly */
         .products-section {
@@ -219,45 +219,59 @@ try {
     }
 
     function saveCart(allowEmpty = false) {
+        // --- FIX: Ensure allowEmpty is actually a boolean ---
+        // When triggered by a button click, 'allowEmpty' comes in as an Event Object.
+        // This forces it to be false if it's not explicitly true.
+        if (typeof allowEmpty !== 'boolean') {
+            allowEmpty = false;
+        }
+
         if (!selectedTableId) {
-            alert('Please select a table first');
+            Swal.fire({ icon: 'info', title: 'Table Required', text: 'Select a table first.' });
             return Promise.reject('No table selected');
         }
 
-        // VISUAL FEEDBACK: Disable buttons while saving
-        const btns = [saveBtn, checkoutBtn, clearBtn];
-        const originalText = saveBtn.textContent;
-        btns.forEach(b => b.disabled = true);
-        saveBtn.textContent = "Saving...";
-
-        const items = Object.values(cart).map(item => ({
-            product_id: item.id,
-            quantity: item.qty
-        }));
-
-        if (items.length === 0 && !allowEmpty) {
-            btns.forEach(b => b.disabled = false);
-            saveBtn.textContent = originalText;
-            alert('Cart is empty. Add items before saving.');
-            return Promise.reject('Cart empty');
+        // 1. CLEANING: Create a fresh array of items that actually have quantity
+        let validItems = [];
+        for (let key in cart) {
+            if (cart[key] && cart[key].qty > 0) {
+                validItems.push({
+                    product_id: cart[key].id,
+                    quantity: cart[key].qty
+                });
+            }
         }
+
+        // 2. THE ALERT CHECK: If there are 0 valid items, STOP IMMEDIATELY
+        if (validItems.length === 0 && !allowEmpty) {
+            console.log("Blocking save: Cart is empty"); // Check your browser console
+            Swal.fire({
+                icon: 'warning',
+                title: 'Empty Bill',
+                text: 'You cannot save an empty bill. Please add products first.',
+                confirmButtonColor: '#2e7d32'
+            });
+            return Promise.reject('Cart empty'); 
+        }
+
+        // 3. PREVENT DOUBLE CLICKS
+        saveBtn.disabled = true;
+        const originalText = saveBtn.textContent;
+        saveBtn.textContent = "Saving...";
 
         return fetch('save_pos_cart.php', {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ table_id: selectedTableId, items: items })
+            body: JSON.stringify({ table_id: selectedTableId, items: validItems })
         })
-        .then(r => {
-            if(r.redirected) window.location.reload(); // Session Expired check
-            return r.json();
-        })
+        .then(r => r.json())
         .then(data => {
             if (data.success) {
                 currentOrderId = data.order_id;
                 updateOrderTime(data.order_id);
-                if(!allowEmpty) { 
-                    // Optional: alert('Saved!'); 
+                if(!allowEmpty) {
+                    Swal.fire({ icon: 'success', title: 'Saved', toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
                 }
                 return data;
             } else {
@@ -265,16 +279,17 @@ try {
             }
         })
         .catch(err => {
-            console.error('Failed to save cart:', err);
-            if (!allowEmpty) alert('Error saving bill: ' + err.message);
+            if (err !== 'Cart empty') {
+                Swal.fire({ icon: 'error', title: 'Error', text: err.message });
+            }
             throw err;
         })
         .finally(() => {
-            // ALWAYS Re-enable buttons
-            btns.forEach(b => b.disabled = false);
+            saveBtn.disabled = false;
             saveBtn.textContent = originalText;
         });
     }
+
 
     function loadCart() {
     if (!selectedTableId) {
@@ -301,7 +316,7 @@ try {
                             name: item.name,
                             price: item.price,
                             qty: item.quantity,
-                            served: item.served || 0 // <--- CRITICAL: Save served count
+                            served: item.served || 0 
                         };
                     });
                 }
@@ -400,14 +415,25 @@ try {
             alert(`🛑 Action Denied: This item has already been served (${servedCount} portions). You cannot remove it from the bill.`);
             return; // Prevent deletion
         }
-
-        delete cart[itemId];
-        updateCart();
-        if (Object.keys(cart).length === 0) {
+        Swal.fire({
+        title: 'Clear this item?',
+        text: "This will remove the item from the current table's bill.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#aaa',
+        confirmButtonText: 'Yes, clear it!'
+        }).then((result) => {
+        if (result.isConfirmed) {
+            delete cart[itemId];
+            if ()
+            updateCart();
+            saveCart(true); // allowEmpty = true to let the server know it's now 0
             updateTableStatus();
         }
-    }
-    }
+        });                
+        }
+        }
 
     function updateCart() {
         cartItems.innerHTML = '';
@@ -466,16 +492,26 @@ try {
     }
 
     function clearCart() {
-        if (!selectedTableId) return;
-        if (Object.keys(cart).length > 0) {
-            if (!confirm("Are you sure you want to clear the whole order?")) return;
-        }
+    if (!selectedTableId) return;
+    
+    if (Object.keys(cart).length === 0) return;
 
-        cart = {};
-        updateCart();
-        saveCart(true); 
-        if (currentOrderId) updateOrderTime(currentOrderId);
-        updateTableStatus();
+    Swal.fire({
+        title: 'Clear everything?',
+        text: "This will remove all items from the current table's bill.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#aaa',
+        confirmButtonText: 'Yes, clear it!'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            cart = {};
+            updateCart();
+            saveCart(true); // allowEmpty = true to let the server know it's now 0
+            updateTableStatus();
+        }
+    });
     }
 
     function updateTableStatus() {
@@ -492,107 +528,88 @@ try {
     }
 
     function checkout() {
-        if (!selectedTableId || Object.keys(cart).length === 0) {
-            alert('Please select a table and add items');
-            return;
-        }
+    if (!selectedTableId || Object.keys(cart).length === 0) {
+        Swal.fire({ icon: 'warning', title: 'Empty Bill', text: 'Add items before checking out.' });
+        return;
+    }
+    
+    // Call saveCart(false) explicit here
+    saveCart(false).then(() => {
+        const popup = document.getElementById('paymentPopup');
+        const pmTotal = document.getElementById('pmTotal');
+        const pmGiven = document.getElementById('pmGiven');
+        const pmChange = document.getElementById('pmChange');
         
-        saveCart().then(() => {
-            if (!currentOrderId) {
-                alert('Error: No order ID generated. Try saving again.');
-                return;
+        const total = Object.values(cart).reduce((s, it) => s + (it.price * it.qty), 0);
+        pmTotal.textContent = '₱' + total.toFixed(2);
+        pmGiven.value = total.toFixed(2); 
+        pmChange.textContent = '₱0.00';
+        
+        popup.style.display = 'flex';
+        pmGiven.focus(); 
+        pmGiven.select();
+
+        document.getElementById('pmConfirm').onclick = () => {
+            const sel = document.querySelector('input[name="pmMethod"]:checked');
+            const method = sel ? sel.value : 'cash';
+            const given = parseFloat(pmGiven.value) || 0;
+            
+            if (given < total - 0.01) { 
+                Swal.fire({ icon: 'error', title: 'Insufficient Amount', text: 'The amount given is less than the total bill.' });
+                return; 
             }
 
-            const popup = document.getElementById('paymentPopup');
-            const pmTotal = document.getElementById('pmTotal');
-            const pmGiven = document.getElementById('pmGiven');
-            const pmChange = document.getElementById('pmChange');
-            
-            if (!popup) return;
-
-            const total = Object.values(cart).reduce((s, it) => s + (it.price * it.qty), 0);
-            pmTotal.textContent = '₱' + total.toFixed(2);
-            pmGiven.value = total.toFixed(2); 
-            pmChange.textContent = '₱0.00';
-            
-            const cash = document.getElementById('pmCash'); 
-            if (cash) cash.checked = true;
-            
-            popup.style.display = 'flex';
-            pmGiven.focus(); 
-            pmGiven.select();
-
-            function computeChange() {
-                const given = parseFloat(pmGiven.value) || 0;
-                const change = Math.max(0, given - total);
-                pmChange.textContent = '₱' + change.toFixed(2);
-                pmChange.style.color = (given >= total) ? '#2e7d32' : '#c62828';
-            }
-
-            pmGiven.oninput = computeChange;
-
-            document.getElementById('pmCancel').onclick = () => { popup.style.display = 'none'; };
-            document.getElementById('pmClose').onclick = () => { popup.style.display = 'none'; };
-
-            document.getElementById('pmConfirm').onclick = () => {
-                const sel = document.querySelector('input[name="pmMethod"]:checked');
-                const method = sel ? sel.value : 'cash';
-                const given = parseFloat(pmGiven.value) || 0;
-                
-                if (given + 0.001 < total) { 
-                    alert('Amount given is less than total'); 
-                    return; 
-                }
-
-                fetch('checkout_order.php', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        order_id: currentOrderId, 
-                        payment_method: method, 
-                        amount_paid: given 
-                    })
-                }).then(r => r.json()).then(data => {
-                    if (data && data.success) {
-                        alert('Payment Successful!');
-                        
+            fetch('checkout_order.php', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    order_id: currentOrderId, 
+                    payment_method: method, 
+                    amount_paid: given 
+                })
+            }).then(r => r.json()).then(data => {
+                if (data && data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Payment Successful!',
+                        text: 'Order ' + data.reference + ' has been closed.',
+                        confirmButtonColor: '#2e7d32'
+                    }).then(() => {
                         cart = {};
                         currentOrderId = null;
                         updateCart();
-                        
                         tableSelect.value = '';
                         selectedTableId = null;
-                        
-                        // RE-LOCK the screen
                         toggleProductLock(); 
-                        
                         popup.style.display = 'none';
-                    } else {
-                        alert('Error: ' + (data?.error || 'Unknown error'));
-                    }
-                }).catch(err => { 
-                    console.error('Checkout error', err); 
-                    alert('Connection failed'); 
-                });
-            };
-        }).catch(err => {
-            console.log("Checkout stopped due to save error");
-        });
+                    });
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Checkout Error', text: data.error });
+                }
+            });
+        };
+    });
     }
 
     tableSelect.addEventListener('change', (e) => {
         const oldTableId = selectedTableId;
         selectedTableId = parseInt(e.target.value) || null;
         
-        toggleProductLock(); // <--- TOGGLE FOG
-        
+        // CRITICAL: Wipe cart when switching tables
+        cart = {}; 
+        currentOrderId = null;
+
+        toggleProductLock(); 
         loadCart();
     });
 
     // Clear Logic
     clearBtn.addEventListener('click', clearCart);
-    saveBtn.addEventListener('click', saveCart);
+    
+    // --- FIX: Explicitly pass false to prevent the Event Object issue ---
+    saveBtn.addEventListener('click', () => saveCart(false));
+    
     checkoutBtn.addEventListener('click', checkout);
 
     // Search Logic
@@ -619,7 +636,7 @@ try {
 
     // Init
     loadProducts();
-    toggleProductLock(); // Ensure locked on load
+    toggleProductLock(); 
 
         // Function for Quick Cash buttons
     function setCash(amount) {

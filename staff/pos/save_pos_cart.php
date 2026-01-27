@@ -16,17 +16,50 @@ $data = json_decode(file_get_contents('php://input'), true);
 $table_id = intval($data['table_id'] ?? 0);
 $items = $data['items'] ?? [];
 
-if (!$table_id) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Missing table_id']);
+// HARD WALL: If no items, kill the script immediately. 
+// No Order ID will be created.
+if (empty($items)) {
+    echo json_encode(['success' => true, 'order_id' => 0, 'message' => 'No items to save']);
     exit;
 }
+
+// ... rest of your code (try/catch, etc)
 
 try {
     $mysqli = get_db_conn();
     $mysqli->begin_transaction();
 
-    // 1. Get or Create Order
+    // NEW: If there are no items and no existing order, just stop here successfully.
+    if (empty($items)) {
+        // If an order exists but we are clearing it (items is empty), 
+        // we handle the deletion of unserved items.
+        $stmt = $mysqli->prepare('SELECT id FROM `orders` WHERE table_id = ? AND status != "paid" LIMIT 1');
+        $stmt->bind_param('i', $table_id);
+        $stmt->execute();
+        $existing = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if ($existing) {
+            $order_id = $existing['id'];
+            // Remove only items not yet served
+            $mysqli->query("DELETE FROM `order_items` WHERE order_id = $order_id AND served = 0");
+            
+            // OPTIONAL: If order is now totally empty (no served items left), delete the order too
+            $checkEmpty = $mysqli->query("SELECT COUNT(*) as count FROM order_items WHERE order_id = $order_id");
+            if ($checkEmpty->fetch_assoc()['count'] == 0) {
+                $mysqli->query("DELETE FROM `orders` WHERE id = $order_id");
+                $order_id = null;
+            }
+        }
+        
+        $mysqli->commit();
+        echo json_encode(['success' => true, 'order_id' => $order_id ?? 0]);
+        exit;
+    }
+
+    // --- LOGIC FOR WHEN ITEMS EXIST ---
+
+    // 1. Get or Create Order ONLY if we have items
     $stmt = $mysqli->prepare('SELECT id FROM `orders` WHERE table_id = ? AND status != "paid" LIMIT 1');
     $stmt->bind_param('i', $table_id);
     $stmt->execute();
@@ -34,6 +67,7 @@ try {
     $stmt->close();
 
     $order_id = $existing_order ? (int)$existing_order['id'] : null;
+    
     if (!$order_id) {
         $stmt = $mysqli->prepare('INSERT INTO `orders` (table_id, status) VALUES (?, "open")');
         $stmt->bind_param('i', $table_id);
@@ -41,6 +75,9 @@ try {
         $order_id = $mysqli->insert_id;
         $stmt->close();
     }
+
+    // 2. UPSERT Logic remains the same...
+    // ... rest of your foreach loop ...
 
     // 2. SMART SAVE: Use UPSERT
     // This updates the quantity if the item exists, but LEAVES the 'served' count alone.
