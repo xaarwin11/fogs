@@ -686,39 +686,45 @@ try {
     function filterTables() {
     const selectedType = document.querySelector('input[name="orderType"]:checked').value;
     
-    // 1. Reset the internal state first
+    // 1. Reset Internal State
     selectedTableId = null;
     currentOrderId = null;
     cart = {};
 
-    // 2. Clear the visual dropdown completely
+    // 2. Clear and Rebuild
     tableSelect.innerHTML = ''; 
-    
-    // 3. Create a fresh placeholder option every time
     const placeholder = document.createElement('option');
     placeholder.value = "";
     placeholder.textContent = "-- Choose Table --";
-    placeholder.selected = true;
     tableSelect.appendChild(placeholder);
 
-    // 4. Re-populate based on type
     tableOptions.forEach(opt => {
         if (opt.getAttribute('data-type') === selectedType) {
-            // Clone the option so we don't carry over old properties
             const newOpt = opt.cloneNode(true);
             newOpt.selected = false; 
             tableSelect.appendChild(newOpt);
         }
     });
 
-    // 5. FORCE the browser to show the placeholder
-    tableSelect.value = "";
+    // 3. Reset Visuals
     tableSelect.selectedIndex = 0;
 
-    // 6. Sync the UI
+    // 4. Sync the Rest of the UI
     updateCart();
     toggleProductLock();
     }
+
+// --- CRITICAL: Ensure this listener is active! ---
+    tableSelect.addEventListener('change', (e) => {
+        selectedTableId = parseInt(e.target.value) || null;
+        
+        // Wipe local cart before loading the saved one from DB
+        cart = {}; 
+        currentOrderId = null;
+
+        toggleProductLock(); // This removes the "Fog"
+        loadCart();          // This pulls the bill from the database
+    });
 
     orderTypeRadios.forEach(r => r.addEventListener('change', filterTables));
 
