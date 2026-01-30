@@ -525,3 +525,110 @@ body .container { display:block; margin-top: 1.2rem; }
         display: none !important;
     }
 }
+
+/* sales.php   */
+/* --- SALES.PHP RESPONSIVE TABLE FIX --- */
+
+/* 1. The Container: This prevents the page from stretching on mobile */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto; /* Allows horizontal swipe on phones */
+    -webkit-overflow-scrolling: touch;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    margin-top: 1rem;
+    border: 1px solid #eee;
+}
+
+/* 2. The Table: Set a min-width so columns don't squish too much */
+.sales-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 850px; /* Enough room for all columns to breathe */
+    font-size: 0.95rem;
+}
+
+.sales-table th {
+    background: #fdfaf7;
+    color: #6B4226;
+    font-weight: 700;
+    text-align: left;
+    padding: 1rem;
+    border-bottom: 2px solid #eee;
+}
+
+.sales-table td {
+    padding: 1rem;
+    border-bottom: 1px solid #fafafa;
+    vertical-align: middle;
+}
+
+.sales-table tr:hover {
+    background: #fffcf9;
+}
+
+/* 3. Visual Accents */
+.badge-method {
+    background: #f1f8e9;
+    color: #2e7d32;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    border: 1px solid #c8e6c9;
+}
+
+.amount-text {
+    font-weight: 800;
+    color: #2e7d32;
+    font-size: 1rem;
+}
+
+/* 4. The Details Button */
+.btn-details {
+    background: #6B4226;
+    color: #fff;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: transform 0.1s, background 0.2s;
+}
+
+.btn-details:hover {
+    background: #55321f;
+}
+
+.btn-details:active {
+    transform: scale(0.95);
+}
+/* This wrapper is the magic fix for phone mode */
+.table-container {
+    width: 100%;
+    overflow-x: auto; /* Allows only the table to scroll sideways */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iPhones */
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid #ddd;
+}
+
+.nice-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 700px; /* Forces the table to stay readable; users just swipe left to see more */
+}
+
+/* Make the 'More Info' button look like your other buttons */
+.btn-info {
+    background: #6B4226;
+    color: #fff;
+    border: none;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}

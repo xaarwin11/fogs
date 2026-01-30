@@ -426,7 +426,6 @@ try {
         }).then((result) => {
         if (result.isConfirmed) {
             delete cart[itemId];
-            if ()
             updateCart();
             saveCart(true); // allowEmpty = true to let the server know it's now 0
             updateTableStatus();

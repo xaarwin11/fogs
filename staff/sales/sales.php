@@ -16,15 +16,16 @@ if (!in_array($role, ['staff','admin','manager'])) {
 try {
     $mysqli = get_db_conn();
     $stmt = $mysqli->prepare(
-        'SELECT o.id, o.table_id, o.status, o.reference, o.created_at, o.paid_at, o.checked_out_by, c.username AS checked_out_by_username,
-            (SELECT COALESCE(SUM((CASE WHEN oi.price IS NOT NULL THEN oi.price ELSE p.price END) * oi.quantity),0)
-             FROM order_items oi
-             LEFT JOIN products p ON p.id = oi.product_id
-             WHERE oi.order_id = o.id) AS total,
-            (SELECT p2.method FROM payments p2 WHERE p2.order_id = o.id ORDER BY p2.created_at DESC LIMIT 1) AS payment_method
-         FROM `orders` o
-         LEFT JOIN `credentials` c ON o.checked_out_by = c.id
-         ORDER BY o.created_at DESC LIMIT 200'
+    'SELECT o.id, o.table_id, o.status, o.reference, o.created_at, o.paid_at, o.checked_out_by, c.username AS checked_out_by_username,
+        (SELECT COALESCE(SUM((CASE WHEN oi.price IS NOT NULL THEN oi.price ELSE p.price END) * oi.quantity),0)
+         FROM order_items oi
+         LEFT JOIN products p ON p.id = oi.product_id
+         WHERE oi.order_id = o.id) AS total,
+        (SELECT p2.method FROM payments p2 WHERE p2.order_id = o.id ORDER BY p2.created_at DESC LIMIT 1) AS payment_method
+     FROM `orders` o
+     LEFT JOIN `credentials` c ON o.checked_out_by = c.id
+     WHERE o.status = "paid"  /* <-- THIS LINE HIDES UNPAID ORDERS */
+     ORDER BY o.paid_at DESC LIMIT 200'
     );
     if ($stmt) {
         $stmt->execute();
@@ -79,31 +80,44 @@ $checkedUsers = array_keys($checkedUsers);
         </select>
     </div>
 
-    <table>
-        <thead><tr><th>Table</th><th>Status</th><th>Reference</th><th>Created</th><th>Paid At</th><th>Payment Method</th><th>Total</th><th>Checked Out By</th></tr></thead>
+    <div class="table-container">
+    <table class="nice-table">
+        <thead>
+            <tr>
+                <th>Table</th>
+                <th>Reference</th>
+                <th>Date Paid</th>
+                <th>Method</th>
+                <th>Amount</th>
+                <th>In Charge</th>
+                <th>Action</th>
+            </tr>
+        </thead>
         <tbody>
         <?php foreach ($orders as $o): ?>
             <?php
-                $dataCreated = htmlspecialchars($o['created_at']);
-                $dataTotal = number_format((float)($o['total'] ?? 0), 2);
-                $dataTable = htmlspecialchars($o['table_id']);
-                $dataStatus = htmlspecialchars($o['status']);
-                $dataReference = htmlspecialchars($o['reference'] ?? '');
-                $dataCheckedBy = htmlspecialchars($o['checked_out_by_username'] ?? ($o['checked_out_by'] ?? ''));
+                // Clean up variables for display
+                $ref = htmlspecialchars($o['reference'] ?? 'N/A');
+                $paidAt = !empty($o['paid_at']) ? date("M d, H:i", strtotime($o['paid_at'])) : '---';
+                $method = htmlspecialchars($o['payment_method'] ?? '---');
+                $total = number_format((float)($o['total'] ?? 0), 2);
+                $inCharge = htmlspecialchars($o['checked_out_by_username'] ?? ($o['checked_out_by'] ?? '---'));
             ?>
-            <tr data-created="<?php echo $dataCreated; ?>" data-total="<?php echo $dataTotal; ?>" data-table="<?php echo $dataTable; ?>" data-status="<?php echo $dataStatus; ?>" data-reference="<?php echo $dataReference; ?>" data-checked-by="<?php echo $dataCheckedBy; ?>">
-                <td><?php echo htmlspecialchars($o['table_id']); ?></td>
-                <td><?php echo htmlspecialchars($o['status']); ?></td>
-                <td><?php echo htmlspecialchars($o['reference'] ?? ''); ?></td>
-                <td><?php echo htmlspecialchars($o['created_at']); ?></td>
-                <td><?php echo htmlspecialchars($o['paid_at'] ?? ''); ?></td>
-                <td><?php echo htmlspecialchars($o['payment_method'] ?? ''); ?></td>
-                <td><?php echo '₱' . number_format((float)($o['total'] ?? 0), 2); ?></td>
-                <td><?php echo htmlspecialchars($o['checked_out_by_username'] ?? ($o['checked_out_by'] ?? '')); ?></td>
+            <tr data-reference="<?php echo $ref; ?>" data-checked-by="<?php echo $inCharge; ?>">
+                <td><strong><?php echo htmlspecialchars($o['table_id']); ?></strong></td>
+                <td style="font-family:monospace;"><?php echo $ref; ?></td>
+                <td><?php echo $paidAt; ?></td>
+                <td><?php echo $method; ?></td>
+                <td style="color:#2e7d32; font-weight:bold;">₱<?php echo $total; ?></td>
+                <td><?php echo $inCharge; ?></td>
+                <td>
+                    <button class="btn-info" onclick="viewOrder(<?php echo $o['id']; ?>)">Details</button>
+                </td>
             </tr>
         <?php endforeach; ?>
         </tbody>
     </table>
+    </div>
     
     <script>
     (function(){
@@ -160,6 +174,16 @@ $checkedUsers = array_keys($checkedUsers);
         sortSel.addEventListener('change', applyFilterAndSort);
         if (groupSel) groupSel.addEventListener('change', applyFilterAndSort);
     })();
+
+    function showMoreInfo(orderId) {
+    // This is where you will eventually fetch order items (receipt items)
+    Swal.fire({
+        title: 'Order Details',
+        text: 'Loading items for Order ID: ' + orderId,
+        icon: 'info',
+        confirmButtonColor: '#6B4226'
+    });
+    }
     </script>
 </div>
 </body>
