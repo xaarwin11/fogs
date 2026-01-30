@@ -16,12 +16,17 @@ if (!in_array($role, ['staff','admin','manager'])) {
 $tables = [];
 try {
     $mysqli = get_db_conn();
-    $stmt = $mysqli->prepare('SELECT id, table_number FROM `tables` ORDER BY table_number ASC');
+    // Fetch both physical and virtual tables
+    $stmt = $mysqli->prepare('SELECT id, table_number, table_type FROM `tables` ORDER BY table_number ASC');
     if ($stmt) {
         $stmt->execute();
         $res = $stmt->get_result();
         while ($row = $res->fetch_assoc()) {
-            $tables[] = ['id' => (int)$row['id'], 'table_number' => (int)$row['table_number']];
+            $tables[] = [
+                'id' => (int)$row['id'], 
+                'table_number' => $row['table_number'], // Removed (int) cast to allow "TO-1"
+                'type' => $row['table_type']
+            ];
         }
         $res->free();
         $stmt->close();
@@ -100,15 +105,25 @@ try {
         </div>
         
         <div class="cart-section">
-            <div class="table-select">
-                <label for="tableSelect"><strong>Select Table</strong></label>
-                <select id="tableSelect">
-                    <option value="">-- Select a table --</option>
-                    <?php foreach ($tables as $t): ?>
-                        <option value="<?php echo $t['id']; ?>">Table <?php echo htmlspecialchars($t['table_number']); ?></option>
-                    <?php endforeach; ?>
-                </select>
+            <div class="table-select-container" style="margin-bottom: 1rem; padding: 10px; background: #f9f9f9; border-radius: 8px;">
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <label style="flex: 1; cursor: pointer; text-align: center; padding: 8px; border: 1px solid #ddd; border-radius: 5px;" id="btnDineIn">
+                        <input type="radio" name="orderType" value="physical" checked style="display: none;"> 🍽️ Dine-in
+                    </label>
+                <label style="flex: 1; cursor: pointer; text-align: center; padding: 8px; border: 1px solid #ddd; border-radius: 5px;" id="btnTakeOut">
+                    <input type="radio" name="orderType" value="virtual" style="display: none;"> 🥡 Take-out
+                </label>
             </div>
+
+    <select id="tableSelect" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
+        <option value="">-- Choose Table --</option>
+        <?php foreach ($tables as $t): ?>
+            <option value="<?php echo $t['id']; ?>" data-type="<?php echo $t['type']; ?>">
+                <?php echo ($t['type'] == 'virtual' ? 'Takeout ' : 'Table ') . htmlspecialchars($t['table_number']); ?>
+            </option>
+        <?php endforeach; ?>
+    </select>
+</div>
             
             <div class="cart-header">BILL</div>
             <div id="cartItems" class="cart-items">
@@ -663,6 +678,39 @@ try {
             }
         });
     });
+
+    // --- NEW: Table Filtering Logic ---
+    const orderTypeRadios = document.querySelectorAll('input[name="orderType"]');
+    const tableOptions = Array.from(tableSelect.options);
+
+    function filterTables() {
+        const selectedType = document.querySelector('input[name="orderType"]:checked').value;
+        
+        // Highlight the active button
+        document.getElementById('btnDineIn').style.background = selectedType === 'physical' ? '#e8f5e9' : '#fff';
+        document.getElementById('btnDineIn').style.borderColor = selectedType === 'physical' ? '#2e7d32' : '#ddd';
+        document.getElementById('btnTakeOut').style.background = selectedType === 'virtual' ? '#e8f5e9' : '#fff';
+        document.getElementById('btnTakeOut').style.borderColor = selectedType === 'virtual' ? '#2e7d32' : '#ddd';
+
+        // Filter the dropdown
+        tableSelect.innerHTML = '<option value="">-- Choose Table --</option>';
+        tableOptions.forEach(opt => {
+            if (opt.getAttribute('data-type') === selectedType) {
+                tableSelect.appendChild(opt);
+            }
+        });
+
+        // If we switch types, reset the selection to avoid errors
+        selectedTableId = null;
+        cart = {};
+        updateCart();
+        toggleProductLock();
+    }
+
+    orderTypeRadios.forEach(r => r.addEventListener('change', filterTables));
+
+    // Run once on load to set initial state
+    filterTables();
     </script>
 </body>
 </html>
