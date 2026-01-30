@@ -1,5 +1,4 @@
 <?php
-
 require_once __DIR__ . '/../../db.php';
 session_start();
 
@@ -13,11 +12,12 @@ if (!in_array($role, ['staff','admin','manager'])) {
 }
 
 $input = json_decode(file_get_contents('php://input'), true);
-$order_id = isset($input['order_id']) ? (int)$input['order_id'] : null;
-$payment_method = isset($input['payment_method']) ? trim($input['payment_method']) : null;
+
+$order_id = isset($input['order_id']) ? (int)$input['order_id'] : 0;
+$payment_method = trim($input['payment_method'] ?? '');
 $amount_paid = isset($input['amount_paid']) ? (float)$input['amount_paid'] : null;
 
-if (!$order_id) {
+if ($order_id <= 0) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Missing order_id']);
     exit;
@@ -25,126 +25,128 @@ if (!$order_id) {
 
 try {
     $mysqli = get_db_conn();
-    
-    $stmt = $mysqli->prepare('SELECT table_id FROM `orders` WHERE id = ?');
-    if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
-    
+
+    /* 1️⃣ Get order + table */
+    $stmt = $mysqli->prepare(
+        'SELECT table_id FROM orders WHERE id = ? AND status = "open"'
+    );
+    if (!$stmt) throw new Exception($mysqli->error);
+
     $stmt->bind_param('i', $order_id);
     $stmt->execute();
-    $res = $stmt->get_result();
-    $order = $res->fetch_assoc();
-    $res->free();
+    $order = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    
+
     if (!$order) {
-        http_response_code(404);
-        echo json_encode(['success' => false, 'error' => 'Order not found']);
-        exit;
+        throw new Exception('Order not found or already paid');
     }
-    
+
     $table_id = (int)$order['table_id'];
-    
-    $stmt = $mysqli->prepare('SELECT COALESCE(SUM((CASE WHEN oi.price IS NOT NULL THEN oi.price ELSE p.price END) * oi.quantity),0) as total FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ?');
-    if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
+
+    /* 2️⃣ Compute total */
+    $stmt = $mysqli->prepare(
+        'SELECT COALESCE(SUM(price * quantity),0) AS total 
+         FROM order_items WHERE order_id = ?'
+    );
+    if (!$stmt) throw new Exception($mysqli->error);
+
     $stmt->bind_param('i', $order_id);
     $stmt->execute();
-    $res = $stmt->get_result();
-    $row = $res->fetch_assoc();
+    $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    $total = isset($row['total']) ? (float)$row['total'] : 0.0;
 
-    
+    $total = (float)$row['total'];
+
+    if ($total <= 0) {
+        throw new Exception('Cannot checkout empty order');
+    }
+
     if ($amount_paid === null) $amount_paid = $total;
-    if ($amount_paid < $total - 0.001) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Insufficient payment amount', 'total' => $total]);
-        exit;
+    
+    // Allow small float margin error
+    if ($amount_paid + 0.001 < $total) {
+        throw new Exception('Insufficient payment');
     }
 
+    /* 3️⃣ Generate reference (YYMMXXXX) */
+    // 'y' = 2 digit year, 'm' = 2 digit month. Example: 2601
+    $prefix = date('ym'); 
     
-    $month = date('Ym');
-    $like = $mysqli->real_escape_string('R' . $month . '-%');
-    $countRes = $mysqli->query("SELECT COUNT(*) as c FROM `orders` WHERE `reference` LIKE '{$like}'");
-    $seq = 1;
-    if ($countRes) {
-        $crow = $countRes->fetch_assoc();
-        $seq = isset($crow['c']) ? ((int)$crow['c'] + 1) : 1;
-    }
-    $reference = 'R' . $month . '-' . str_pad((string)$seq, 4, '0', STR_PAD_LEFT);
+    // Count existing orders with this specific YYMM prefix
+    $res = $mysqli->query(
+        "SELECT COUNT(*) c FROM orders WHERE reference LIKE '{$prefix}%'"
+    );
+    
+    if (!$res) throw new Exception($mysqli->error);
+    
+    $seq = ((int)$res->fetch_assoc()['c']) + 1;
+    
+    // Construct: Prefix (YYMM) + Sequence padded to 4 digits (XXXX)
+    // Result example: 26010001
+    $reference = $prefix . str_pad($seq, 3, '0', STR_PAD_LEFT);
 
-    
-    $userId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
+    $userId = (int)($_SESSION['user_id'] ?? 0);
     $change = round($amount_paid - $total, 2);
 
-    $paymentsTableRes = $mysqli->query("SHOW TABLES LIKE 'payments'");
-    $usePayments = ($paymentsTableRes && $paymentsTableRes->num_rows > 0);
-
+    /* 4️⃣ TRANSACTION */
     $mysqli->begin_transaction();
-    try {
-        if ($usePayments) {
-            $ins = $mysqli->prepare('INSERT INTO `payments` (`order_id`, `amount`, `method`, `change_given`, `processed_by`, `created_at`) VALUES (?, ?, ?, ?, ?, NOW())');
-            if ($ins) {
-                $ins->bind_param('idssi', $order_id, $amount_paid, $payment_method, $change, $userId);
-                $ins->execute();
-                $ins->close();
-            }
 
-           
-            $up = $mysqli->prepare('UPDATE `orders` SET `status` = "paid", `reference` = ?, `paid_at` = NOW(), `checked_out_by` = ? WHERE id = ?');
-            if ($up) {
-                $up->bind_param('sii', $reference, $userId, $order_id);
-                $up->execute();
-                $up->close();
-            }
-        } else {
-           
-            $up = $mysqli->prepare('UPDATE `orders` SET `status` = "paid", `reference` = ?, `paid_at` = NOW(), `checked_out_by` = ? WHERE id = ?');
-            if ($up) {
-                $up->bind_param('sii', $reference, $userId, $order_id);
-                $up->execute();
-                $up->close();
-            }
-        }
+    // Payment
+    $stmt = $mysqli->prepare(
+        'INSERT INTO payments 
+         (order_id, amount, method, change_given, processed_by) 
+         VALUES (?, ?, ?, ?, ?)'
+    );
+    $stmt->bind_param('idssi', 
+        $order_id, $amount_paid, $payment_method, $change, $userId
+    );
+    $stmt->execute();
+    $stmt->close();
 
-       
-        $stmt = $mysqli->prepare('UPDATE `tables` SET occupied = 0 WHERE id = ?');
-        if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
+    // Order paid
+    $stmt = $mysqli->prepare(
+        'UPDATE orders 
+         SET status = "paid", 
+             reference = ?, 
+             paid_at = NOW(), 
+             checked_out_by = ? 
+         WHERE id = ?'
+    );
+    $stmt->bind_param('sii', $reference, $userId, $order_id);
+    $stmt->execute();
+    $stmt->close();
+
+    // Table available again
+    if ($table_id > 0) {
+        $stmt = $mysqli->prepare(
+            'UPDATE tables SET status = "available" WHERE id = ?'
+        );
         $stmt->bind_param('i', $table_id);
         $stmt->execute();
         $stmt->close();
+    }
 
-        $mysqli->commit();
-    } catch (Exception $e) {
+    $mysqli->commit();
+
+    echo json_encode([
+        'success' => true,
+        'reference' => $reference,
+        'change' => $change
+    ]);
+
+} catch (Exception $e) {
+    if (isset($mysqli) && $mysqli->errno === 0) {
         $mysqli->rollback();
-        throw $e;
     }
 
-    
-    $userId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
-    $colChecked = $mysqli->query("SHOW COLUMNS FROM `orders` LIKE 'checked_out_by'");
-    if ($colChecked && $colChecked->num_rows > 0 && $userId) {
-        $up2 = $mysqli->prepare('UPDATE `orders` SET `checked_out_by` = ? WHERE id = ?');
-        if ($up2) {
-            $up2->bind_param('ii', $userId, $order_id);
-            $up2->execute();
-            $up2->close();
-        }
-    }
-    
-    
-    $stmt = $mysqli->prepare('UPDATE `tables` SET occupied = 0 WHERE id = ?');
-    if (!$stmt) throw new Exception('Prepare failed: ' . $mysqli->error);
-    
-    $stmt->bind_param('i', $table_id);
-    $stmt->execute();
-    $stmt->close();
-    
-    echo json_encode(['success' => true, 'table_id' => $table_id, 'reference' => $reference]);
-} catch (Exception $ex) {
-    error_log('checkout_order error: ' . $ex->getMessage());
+    error_log('checkout_order error: ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => $ex->getMessage()]);
+    echo json_encode([
+        'success' => false,
+        'error' => $e->getMessage()
+    ]);
 }
 
-$mysqli->close();
-?>
+if (isset($mysqli)) {
+    $mysqli->close();
+}

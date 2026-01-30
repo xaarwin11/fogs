@@ -6,7 +6,7 @@ session_start();
 if (!empty($_SESSION['user_id'])) {
     $role = strtolower($_SESSION['role'] ?? '');
     if (in_array($role, ['staff', 'admin', 'manager'])) {
-        header('Location: staff/dashboard_staff.php');
+        header('Location: staff/pos/pos.php');
     } else {
         header('Location: customer/dashboard.php');
     }
@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $mysqli->close();
                         $role = strtolower($dbRole ?? '');
                         if (in_array($role, ['staff','admin','manager'])) {
-                            header('Location: staff/dashboard_staff.php');
+                            header('Location: staff/pos/pos.php');
                         } else {
                             header('Location: customer/dashboard.php');
                         }

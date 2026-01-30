@@ -24,7 +24,7 @@ try {
         while ($row = $res->fetch_assoc()) {
             $tables[] = [
                 'id' => (int)$row['id'], 
-                'table_number' => $row['table_number'], // Removed (int) cast to allow "TO-1"
+                'table_number' => $row['table_number'],
                 'type' => $row['table_type']
             ];
         }
@@ -45,19 +45,21 @@ try {
     <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/style.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        /* FORCE FIX: Ensure the product section handles the overlay correctly */
-        .products-section {
-            position: relative !important; /* This is crucial for the overlay to sit inside */
-            overflow: hidden; /* Keeps the rounded corners clean */
+        /* Force SweetAlert to always be on top of everything */
+        .swal2-container {
+            z-index: 20000 !important;
         }
 
-        /* The Fog Overlay */
+        .products-section {
+            position: relative !important;
+            overflow: hidden;
+        }
         .products-overlay {
             position: absolute;
-            inset: 0; /* Top, Right, Bottom, Left = 0 */
+            inset: 0;
             background: rgba(255, 255, 255, 0.75);
-            backdrop-filter: blur(3px); /* Makes it look blurry */
-            z-index: 50; /* Higher than everything else in the box */
+            backdrop-filter: blur(3px);
+            z-index: 50;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -68,7 +70,6 @@ try {
             font-size: 1.1rem;
             text-align: center;
         }
-
         .products-overlay span {
             background: #fff;
             padding: 10px 20px;
@@ -76,8 +77,6 @@ try {
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             border: 1px solid #eee;
         }
-
-        /* Input Fix: Remove spinners */
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { 
             -webkit-appearance: none; 
@@ -110,20 +109,20 @@ try {
                     <label style="flex: 1; cursor: pointer; text-align: center; padding: 8px; border: 1px solid #ddd; border-radius: 5px;" id="btnDineIn">
                         <input type="radio" name="orderType" value="physical" checked style="display: none;"> 🍽️ Dine-in
                     </label>
-                <label style="flex: 1; cursor: pointer; text-align: center; padding: 8px; border: 1px solid #ddd; border-radius: 5px;" id="btnTakeOut">
-                    <input type="radio" name="orderType" value="virtual" style="display: none;"> 🥡 Take-out
-                </label>
-            </div>
+                    <label style="flex: 1; cursor: pointer; text-align: center; padding: 8px; border: 1px solid #ddd; border-radius: 5px;" id="btnTakeOut">
+                        <input type="radio" name="orderType" value="virtual" style="display: none;"> 🥡 Take-out
+                    </label>
+                </div>
 
-    <select id="tableSelect" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
-        <option value="">-- Choose Table --</option>
-        <?php foreach ($tables as $t): ?>
-            <option value="<?php echo $t['id']; ?>" data-type="<?php echo $t['type']; ?>">
-                <?php echo ($t['type'] == 'virtual' ? 'Takeout ' : 'Table ') . htmlspecialchars($t['table_number']); ?>
-            </option>
-        <?php endforeach; ?>
-    </select>
-</div>
+                <select id="tableSelect" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
+                    <option value="">-- Choose Table --</option>
+                    <?php foreach ($tables as $t): ?>
+                        <option value="<?php echo $t['id']; ?>" data-type="<?php echo $t['type']; ?>">
+                            <?php echo ($t['type'] == 'virtual' ? 'Takeout ' : 'Table ') . htmlspecialchars($t['table_number']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
             
             <div class="cart-header">BILL</div>
             <div id="cartItems" class="cart-items">
@@ -138,61 +137,61 @@ try {
         </div>
     </div>
 
-    <div id="paymentPopup" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; z-index:9999;">
-    <div style="background:#fff; border-radius:12px; width:450px; max-width:95%; box-shadow:0 10px 50px rgba(0,0,0,0.3); overflow:hidden;">
-        
-        <div style="background:#f8f9fa; padding:1.25rem; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; width:95%;">
-            <h3 style="padding:5px; margin:0; font-size:1.2rem;">Finalize Payment</h3>
-            <button id="pmClose" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#999;">&times;</button>
+    <div id="paymentPopup" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; z-index:1000;">
+        <div style="background:#fff; border-radius:12px; width:450px; max-width:95%; box-shadow:0 10px 50px rgba(0,0,0,0.3); overflow:hidden;">
+            
+            <div style="background:#f8f9fa; padding:1.25rem; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; width:95%;">
+                <h3 style="padding:5px; margin:0; font-size:1.2rem;">Finalize Payment</h3>
+                <button id="pmClose" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:#999;">&times;</button>
+            </div>
+
+            <div style="padding:1.5rem; text-align:center;">
+                <div style="text-align:center; margin-bottom:1.5rem;">
+                    <div style="color:#666; font-size:0.9rem; text-transform:uppercase; letter-spacing:1px;">Amount Due</div>
+                    <div id="pmTotal" style="font-size:2.5rem; font-weight:800; color:#222;">₱0.00</div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:1.5rem;">
+                    <label style="cursor:pointer; border:2px solid #ddd; border-radius:8px; padding:10px; text-align:center; display:block;" id="labelCash">
+                        <input type="radio" name="pmMethod" id="pmCash" value="cash" checked style="display:none;">
+                        <strong>💵 Cash</strong>
+                    </label>
+                    <label style="cursor:pointer; border:2px solid #ddd; border-radius:8px; padding:10px; text-align:center; display:block;" id="labelGcash">
+                        <input type="radio" name="pmMethod" id="pmGcash" value="gcash" style="display:none;">
+                        <strong>📱 GCash</strong>
+                    </label>
+                </div>
+
+                <div style="margin-bottom:1rem;">
+                    <label style="font-weight:600; color:#444;">Amount Received</label>
+                    <input id="pmGiven" type="number" step="0.01" style="width:90%; padding:1rem; font-size:1.5rem; border:2px solid #eee; border-radius:8px; margin-top:5px; text-align:right;" placeholder="0.00">
+                </div>
+
+                <div style="display:flex; gap:8px; margin-bottom:1.5rem; flex-wrap:wrap; justify-content: center;">
+                    <button type="button" class="quick-cash" onclick="setCash(100)">₱100</button>
+                    <button type="button" class="quick-cash" onclick="setCash(200)">₱200</button>
+                    <button type="button" class="quick-cash" onclick="setCash(500)">₱500</button>
+                    <button type="button" class="quick-cash" onclick="setCash(1000)">₱1000</button>
+                </div>
+
+                <div style="background:#f1f8e9; padding:1rem; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-weight:600; color:#2e7d32;">CHANGE</span>
+                    <span id="pmChange" style="font-size:1.5rem; font-weight:700; color:#2e7d32;">₱0.00</span>
+                </div>
+            </div>
+
+            <div style="padding:1rem; border-top:1px solid #eee; display:flex; gap:10px;">
+                <button id="pmCancel" style="flex:1; padding:1rem; border-radius:8px; border:1px solid #ddd; background:#fff; cursor:pointer; font-weight:600;">Back</button>
+                <button id="pmConfirm" style="flex:2; padding:1rem; border-radius:8px; border:none; background:#2e7d32; color:#fff; font-size:1rem; font-weight:700; cursor:pointer;">CONFIRM & PAY</button>
+            </div>
         </div>
-
-        <div style="padding:1.5rem; text-align:center;">
-            <div style="text-align:center; margin-bottom:1.5rem;">
-                <div style="color:#666; font-size:0.9rem; text-transform:uppercase; letter-spacing:1px;">Amount Due</div>
-                <div id="pmTotal" style="font-size:2.5rem; font-weight:800; color:#222;">₱0.00</div>
-            </div>
-
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:1.5rem;">
-                <label style="cursor:pointer; border:2px solid #ddd; border-radius:8px; padding:10px; text-align:center; display:block;" id="labelCash">
-                    <input type="radio" name="pmMethod" id="pmCash" value="cash" checked style="display:none;">
-                    <strong>💵 Cash</strong>
-                </label>
-                <label style="cursor:pointer; border:2px solid #ddd; border-radius:8px; padding:10px; text-align:center; display:block;" id="labelGcash">
-                    <input type="radio" name="pmMethod" id="pmGcash" value="gcash" style="display:none;">
-                    <strong>📱 GCash</strong>
-                </label>
-            </div>
-
-            <div style="margin-bottom:1rem;">
-                <label style="font-weight:600; color:#444;">Amount Received</label>
-                <input id="pmGiven" type="number" step="0.01" style="width:90%; padding:1rem; font-size:1.5rem; border:2px solid #eee; border-radius:8px; margin-top:5px; text-align:right;" placeholder="0.00">
-            </div>
-
-            <div style="display:flex; gap:8px; margin-bottom:1.5rem; flex-wrap:wrap;">
-                <button type="button" class="quick-cash" onclick="setCash(100)">₱100</button>
-                <button type="button" class="quick-cash" onclick="setCash(200)">₱200</button>
-                <button type="button" class="quick-cash" onclick="setCash(300)">₱300</button>
-                <button type="button" class="quick-cash" onclick="setCash(500)">₱500</button>
-                <button type="button" class="quick-cash" onclick="setCash(1000)">₱1000</button>
-            </div>
-
-            <div style="background:#f1f8e9; padding:1rem; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-weight:600; color:#2e7d32;">CHANGE</span>
-                <span id="pmChange" style="font-size:1.5rem; font-weight:700; color:#2e7d32;">₱0.00</span>
-            </div>
-        </div>
-
-        <div style="padding:1rem; border-top:1px solid #eee; display:flex; gap:10px;">
-            <button id="pmCancel" style="flex:1; padding:1rem; border-radius:8px; border:1px solid #ddd; background:#fff; cursor:pointer; font-weight:600;">Back</button>
-            <button id="pmConfirm" style="flex:2; padding:1rem; border-radius:8px; border:none; background:#2e7d32; color:#fff; font-size:1rem; font-weight:700; cursor:pointer;">CONFIRM & PAY</button>
-        </div>
-    </div>
     </div>
 
     <script>
     let selectedTableId = null;
     let cart = {};
     let currentOrderId = null;
+    let currentBillAmount = 0; 
 
     const tableSelect = document.getElementById('tableSelect');
     const productsGrid = document.getElementById('productsGrid');
@@ -208,21 +207,18 @@ try {
     let allProducts = {};
     let currentCategory = null;
 
-    // --- VISUAL LOGIC: Toggle the "Fog" Mask ---
+    // --- VISUAL LOGIC ---
     function toggleProductLock() {
         if (!selectedTableId) {
-            // No table selected: SHOW FOG, DISABLE SEARCH
             productOverlay.style.display = 'flex';
             productSearch.disabled = true;
         } else {
-            // Table selected: HIDE FOG, ENABLE SEARCH
             productOverlay.style.display = 'none';
             productSearch.disabled = false;
         }
     }
 
     // --- DATA LOGIC ---
-
     function updateOrderTime(orderId) {
         if (!orderId) return;
         fetch('update_order_time.php', {
@@ -234,19 +230,13 @@ try {
     }
 
     function saveCart(allowEmpty = false) {
-        // --- FIX: Ensure allowEmpty is actually a boolean ---
-        // When triggered by a button click, 'allowEmpty' comes in as an Event Object.
-        // This forces it to be false if it's not explicitly true.
-        if (typeof allowEmpty !== 'boolean') {
-            allowEmpty = false;
-        }
+        if (typeof allowEmpty !== 'boolean') allowEmpty = false;
 
         if (!selectedTableId) {
             Swal.fire({ icon: 'info', title: 'Table Required', text: 'Select a table first.' });
             return Promise.reject('No table selected');
         }
 
-        // 1. CLEANING: Create a fresh array of items that actually have quantity
         let validItems = [];
         for (let key in cart) {
             if (cart[key] && cart[key].qty > 0) {
@@ -257,9 +247,7 @@ try {
             }
         }
 
-        // 2. THE ALERT CHECK: If there are 0 valid items, STOP IMMEDIATELY
         if (validItems.length === 0 && !allowEmpty) {
-            console.log("Blocking save: Cart is empty"); // Check your browser console
             Swal.fire({
                 icon: 'warning',
                 title: 'Empty Bill',
@@ -269,7 +257,6 @@ try {
             return Promise.reject('Cart empty'); 
         }
 
-        // 3. PREVENT DOUBLE CLICKS
         saveBtn.disabled = true;
         const originalText = saveBtn.textContent;
         saveBtn.textContent = "Saving...";
@@ -305,48 +292,47 @@ try {
         });
     }
 
-
     function loadCart() {
-    if (!selectedTableId) {
-        cart = {};
-        currentOrderId = null;
-        updateCart();
-        return;
-    }
-
-    fetch('get_pos_cart.php?table_id=' + encodeURIComponent(selectedTableId), { credentials: 'same-origin' })
-        .then(r => {
-            if(r.redirected) window.location.reload();
-            return r.json();
-        })
-        .then(data => {
-            if (data.success) {
-                currentOrderId = data.order_id;
-                cart = {};
-                if (data.items && data.items.length > 0) {
-                    data.items.forEach(item => {
-                        const itemId = 'product_' + item.product_id;
-                        cart[itemId] = {
-                            id: item.product_id,
-                            name: item.name,
-                            price: item.price,
-                            qty: item.quantity,
-                            served: item.served || 0 
-                        };
-                    });
-                }
-                updateCart();
-            } else {
-                cart = {};
-                currentOrderId = null;
-                updateCart();
-            }
-        })
-        .catch(err => {
-            console.error('Failed to load cart:', err);
+        if (!selectedTableId) {
             cart = {};
+            currentOrderId = null;
             updateCart();
-        });
+            return;
+        }
+
+        fetch('get_pos_cart.php?table_id=' + encodeURIComponent(selectedTableId), { credentials: 'same-origin' })
+            .then(r => {
+                if(r.redirected) window.location.reload();
+                return r.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    currentOrderId = data.order_id;
+                    cart = {};
+                    if (data.items && data.items.length > 0) {
+                        data.items.forEach(item => {
+                            const itemId = 'product_' + item.product_id;
+                            cart[itemId] = {
+                                id: item.product_id,
+                                name: item.name,
+                                price: parseFloat(item.price), 
+                                qty: parseInt(item.quantity),
+                                served: parseInt(item.served || 0)
+                            };
+                        });
+                    }
+                    updateCart();
+                } else {
+                    cart = {};
+                    currentOrderId = null;
+                    updateCart();
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load cart:', err);
+                cart = {};
+                updateCart();
+            });
     }
 
     function loadProducts() {
@@ -389,9 +375,7 @@ try {
             <div class="product-price">₱${parseFloat(product.price).toFixed(2)}</div>
         `;
         card.addEventListener('click', () => {
-            // If overlay is active (somehow), stop interaction
             if (!selectedTableId) return; 
-
             card.style.transform = "scale(0.95)";
             setTimeout(() => card.style.transform = "", 100);
             addToCart(product.id, product.name, product.price);
@@ -416,38 +400,37 @@ try {
         if (cart[itemId]) {
             cart[itemId].qty++;
         } else {
-            cart[itemId] = { id: productId, name: productName, price: productPrice, qty: 1 };
+            cart[itemId] = { id: productId, name: productName, price: parseFloat(productPrice), qty: 1 };
         }
         updateCart();
         updateTableStatus();
     }
 
     function removeFromCart(itemId) {
-    if (cart[itemId]) {
-        const servedCount = parseInt(cart[itemId].served) || 0;
-
-        if (servedCount > 0) {
-            alert(`🛑 Action Denied: This item has already been served (${servedCount} portions). You cannot remove it from the bill.`);
-            return; // Prevent deletion
+        if (cart[itemId]) {
+            const servedCount = parseInt(cart[itemId].served) || 0;
+            if (servedCount > 0) {
+                alert(`🛑 Action Denied: This item has already been served (${servedCount} portions). You cannot remove it from the bill.`);
+                return;
+            }
+            Swal.fire({
+                title: 'Clear this item?',
+                text: "This will remove the item from the current table's bill.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#aaa',
+                confirmButtonText: 'Yes, clear it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    delete cart[itemId];
+                    updateCart();
+                    saveCart(true); 
+                    updateTableStatus();
+                }
+            });                
         }
-        Swal.fire({
-        title: 'Clear this item?',
-        text: "This will remove the item from the current table's bill.",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#aaa',
-        confirmButtonText: 'Yes, clear it!'
-        }).then((result) => {
-        if (result.isConfirmed) {
-            delete cart[itemId];
-            updateCart();
-            saveCart(true); // allowEmpty = true to let the server know it's now 0
-            updateTableStatus();
-        }
-        });                
-        }
-        }
+    }
 
     function updateCart() {
         cartItems.innerHTML = '';
@@ -457,7 +440,6 @@ try {
             total += lineTotal;
             const row = document.createElement('div');
             row.className = 'cart-item';
-            // Inside updateCart() loop
             const servedCount = item.served || 0;
             const statusLabel = servedCount > 0 ? `<br><small style="color:red;">Served: ${servedCount}</small>` : '';
 
@@ -481,51 +463,47 @@ try {
     }
 
     function changeQty(itemId, delta) {
-    if (cart[itemId]) {
-        const item = cart[itemId];
-        const newQty = item.qty + delta;
-        
-        // Use 0 if 'served' isn't loaded yet
-        const servedCount = item.served || 0;
+        if (cart[itemId]) {
+            const item = cart[itemId];
+            const newQty = item.qty + delta;
+            const servedCount = item.served || 0;
 
-        // ERROR CATCHER: Prevent reduction below served count
-        if (delta < 0 && newQty < servedCount) {
-            alert(`Action Denied: ${servedCount} portion(s) of ${item.name} have already been served to the table.`);
-            return; // Stop the function here
-        }
+            if (delta < 0 && newQty < servedCount) {
+                alert(`Action Denied: ${servedCount} portion(s) of ${item.name} have already been served to the table.`);
+                return;
+            }
 
-        if (newQty > 0) {
-            item.qty = newQty;
-            updateCart();
-        } else {
-            if(confirm("Remove " + item.name + "?")) {
-                removeFromCart(itemId);
+            if (newQty > 0) {
+                item.qty = newQty;
+                updateCart();
+            } else {
+                if(confirm("Remove " + item.name + "?")) {
+                    removeFromCart(itemId);
+                }
             }
         }
     }
-    }
 
     function clearCart() {
-    if (!selectedTableId) return;
-    
-    if (Object.keys(cart).length === 0) return;
+        if (!selectedTableId) return;
+        if (Object.keys(cart).length === 0) return;
 
-    Swal.fire({
-        title: 'Clear everything?',
-        text: "This will remove all items from the current table's bill.",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#aaa',
-        confirmButtonText: 'Yes, clear it!'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            cart = {};
-            updateCart();
-            saveCart(true); // allowEmpty = true to let the server know it's now 0
-            updateTableStatus();
-        }
-    });
+        Swal.fire({
+            title: 'Clear everything?',
+            text: "This will remove all items from the current table's bill.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#aaa',
+            confirmButtonText: 'Yes, clear it!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                cart = {};
+                updateCart();
+                saveCart(true); 
+                updateTableStatus();
+            }
+        });
     }
 
     function updateTableStatus() {
@@ -542,91 +520,55 @@ try {
     }
 
     function checkout() {
-    if (!selectedTableId || Object.keys(cart).length === 0) {
-        Swal.fire({ icon: 'warning', title: 'Empty Bill', text: 'Add items before checking out.' });
-        return;
-    }
-    
-    // Call saveCart(false) explicit here
-    saveCart(false).then(() => {
-        const popup = document.getElementById('paymentPopup');
-        const pmTotal = document.getElementById('pmTotal');
-        const pmGiven = document.getElementById('pmGiven');
-        const pmChange = document.getElementById('pmChange');
+        if (!selectedTableId || Object.keys(cart).length === 0) {
+            Swal.fire({ icon: 'warning', title: 'Empty Bill', text: 'Add items before checking out.' });
+            return;
+        }
         
-        const total = Object.values(cart).reduce((s, it) => s + (it.price * it.qty), 0);
-        pmTotal.textContent = '₱' + total.toFixed(2);
-        pmGiven.value = total.toFixed(2); 
-        pmChange.textContent = '₱0.00';
+        checkoutBtn.disabled = true;
+        const originalText = checkoutBtn.textContent;
+        checkoutBtn.textContent = "Processing...";
         
-        popup.style.display = 'flex';
-        pmGiven.focus(); 
-        pmGiven.select();
-
-        document.getElementById('pmConfirm').onclick = () => {
-            const sel = document.querySelector('input[name="pmMethod"]:checked');
-            const method = sel ? sel.value : 'cash';
-            const given = parseFloat(pmGiven.value) || 0;
+        saveCart(false).then(() => {
+            const popup = document.getElementById('paymentPopup');
+            const pmTotal = document.getElementById('pmTotal');
+            const pmGiven = document.getElementById('pmGiven');
+            const pmChange = document.getElementById('pmChange');
             
-            if (given < total - 0.01) { 
-                Swal.fire({ icon: 'error', title: 'Insufficient Amount', text: 'The amount given is less than the total bill.' });
-                return; 
-            }
-
-            fetch('checkout_order.php', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    order_id: currentOrderId, 
-                    payment_method: method, 
-                    amount_paid: given 
-                })
-            }).then(r => r.json()).then(data => {
-                if (data && data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Payment Successful!',
-                        text: 'Order ' + data.reference + ' has been closed.',
-                        confirmButtonColor: '#2e7d32'
-                    }).then(() => {
-                        cart = {};
-                        currentOrderId = null;
-                        updateCart();
-                        tableSelect.value = '';
-                        selectedTableId = null;
-                        toggleProductLock(); 
-                        popup.style.display = 'none';
-                    });
-                } else {
-                    Swal.fire({ icon: 'error', title: 'Checkout Error', text: data.error });
-                }
-            });
-        };
-    });
+            // Calculate total from object to be precise
+            currentBillAmount = Object.values(cart).reduce((s, it) => s + (it.price * it.qty), 0);
+            
+            pmTotal.textContent = '₱' + currentBillAmount.toFixed(2);
+            pmGiven.value = currentBillAmount.toFixed(2); 
+            pmChange.textContent = '₱0.00';
+            
+            popup.style.display = 'flex';
+            setTimeout(() => {
+                pmGiven.focus(); 
+                pmGiven.select();
+                // Trigger calculation immediately
+                updateChange();
+            }, 100);
+        })
+        .catch(err => console.error("Checkout save error:", err))
+        .finally(() => {
+            checkoutBtn.disabled = false;
+            checkoutBtn.textContent = originalText;
+        });
     }
 
     tableSelect.addEventListener('change', (e) => {
-        const oldTableId = selectedTableId;
         selectedTableId = parseInt(e.target.value) || null;
-        
-        // CRITICAL: Wipe cart when switching tables
         cart = {}; 
         currentOrderId = null;
-
         toggleProductLock(); 
         loadCart();
     });
 
-    // Clear Logic
     clearBtn.addEventListener('click', clearCart);
-    
-    // --- FIX: Explicitly pass false to prevent the Event Object issue ---
     saveBtn.addEventListener('click', () => saveCart(false));
-    
     checkoutBtn.addEventListener('click', checkout);
 
-    // Search Logic
     productSearch.addEventListener('input', (e) => {
         const term = e.target.value.toLowerCase().trim();
         if (term === "") {
@@ -652,25 +594,19 @@ try {
     loadProducts();
     toggleProductLock(); 
 
-        // Function for Quick Cash buttons
     function setCash(amount) {
         const pmGiven = document.getElementById('pmGiven');
         pmGiven.value = amount.toFixed(2);
-        
-        // Manually trigger the "input" event so change is recalculated
         pmGiven.dispatchEvent(new Event('input'));
     }
 
-    // Logic to highlight the selected payment method box
     document.querySelectorAll('input[name="pmMethod"]').forEach(radio => {
         radio.addEventListener('change', function() {
-            // Reset both
             document.getElementById('labelCash').style.borderColor = '#ddd';
             document.getElementById('labelGcash').style.borderColor = '#ddd';
             document.getElementById('labelCash').style.background = '#fff';
             document.getElementById('labelGcash').style.background = '#fff';
             
-            // Highlight selected
             if(this.checked) {
                 const label = this.closest('label');
                 label.style.borderColor = '#2e7d32';
@@ -679,57 +615,134 @@ try {
         });
     });
 
-    // --- NEW: Table Filtering Logic ---
+    // --- Table Filtering Logic ---
     const orderTypeRadios = document.querySelectorAll('input[name="orderType"]');
-    const tableOptions = Array.from(tableSelect.options);
+    const tableOptions = Array.from(tableSelect.options); // Keep reference to originals
 
     function filterTables() {
-    const selectedType = document.querySelector('input[name="orderType"]:checked').value;
-    
-    // 1. Reset Internal State
-    selectedTableId = null;
-    currentOrderId = null;
-    cart = {};
+        const selectedType = document.querySelector('input[name="orderType"]:checked').value;
+        
+        document.getElementById('btnDineIn').style.background = selectedType === 'physical' ? '#e8f5e9' : '#fff';
+        document.getElementById('btnDineIn').style.borderColor = selectedType === 'physical' ? '#2e7d32' : '#ddd';
+        document.getElementById('btnTakeOut').style.background = selectedType === 'virtual' ? '#e8f5e9' : '#fff';
+        document.getElementById('btnTakeOut').style.borderColor = selectedType === 'virtual' ? '#2e7d32' : '#ddd';
 
-    // 2. Clear and Rebuild
-    tableSelect.innerHTML = ''; 
-    const placeholder = document.createElement('option');
-    placeholder.value = "";
-    placeholder.textContent = "-- Choose Table --";
-    tableSelect.appendChild(placeholder);
+        // Clear select but keep the default option logic clean
+        tableSelect.innerHTML = ''; 
+        
+        tableOptions.forEach(opt => {
+            // Always show the default placeholder
+            if (opt.value === "") {
+                opt.selected = true; // Reset selection
+                tableSelect.appendChild(opt);
+                return;
+            }
+            // Add matching options
+            if (opt.getAttribute('data-type') === selectedType) {
+                opt.selected = false;
+                tableSelect.appendChild(opt);
+            }
+        });
 
-    tableOptions.forEach(opt => {
-        if (opt.getAttribute('data-type') === selectedType) {
-            const newOpt = opt.cloneNode(true);
-            newOpt.selected = false; 
-            tableSelect.appendChild(newOpt);
-        }
-    });
-
-    // 3. Reset Visuals
-    tableSelect.selectedIndex = 0;
-
-    // 4. Sync the Rest of the UI
-    updateCart();
-    toggleProductLock();
+        // Reset UI state
+        selectedTableId = null;
+        cart = {};
+        updateCart();
+        toggleProductLock();
     }
 
-// --- CRITICAL: Ensure this listener is active! ---
-    tableSelect.addEventListener('change', (e) => {
-        selectedTableId = parseInt(e.target.value) || null;
-        
-        // Wipe local cart before loading the saved one from DB
-        cart = {}; 
-        currentOrderId = null;
+    orderTypeRadios.forEach(r => r.addEventListener('change', filterTables));
+    filterTables();
 
-        toggleProductLock(); // This removes the "Fog"
-        loadCart();          // This pulls the bill from the database
+    // ---- PAYMENT LOGIC ----
+    const paymentPopup = document.getElementById('paymentPopup');
+    const pmClose = document.getElementById('pmClose');
+    const pmCancel = document.getElementById('pmCancel');
+    const pmGiven = document.getElementById('pmGiven');
+    const pmChange = document.getElementById('pmChange');
+
+    function closePaymentPopup() {
+        paymentPopup.style.display = 'none';
+        pmGiven.value = '';
+        pmChange.textContent = '₱0.00';
+    }
+
+    pmClose.addEventListener('click', closePaymentPopup);
+    pmCancel.addEventListener('click', closePaymentPopup);
+
+    document.getElementById('pmConfirm').addEventListener('click', () => {
+        const method = document.querySelector('input[name="pmMethod"]:checked').value;
+        const given = parseFloat(document.getElementById('pmGiven').value || 0);
+
+        if (!currentOrderId) {
+            Swal.fire('Error', 'Order ID missing. Please save again.', 'error');
+            return;
+        }
+        
+        // --- VALIDATION: Margin of error (0.01) for float precision
+        if (given < (currentBillAmount - 0.01)) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Insufficient Amount',
+                text: 'The amount given is less than the total bill.'
+            });
+            return;
+        }
+
+        fetch('checkout_order.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                order_id: currentOrderId,
+                payment_method: method,
+                amount_paid: given
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) throw new Error(data.error);
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Payment Complete',
+                text: `Reference: ${data.reference}`
+            });
+
+            closePaymentPopup();
+
+            // RESET UI
+            selectedTableId = null;
+            cart = {};
+            currentOrderId = null;
+            tableSelect.value = "";
+            filterTables(); // Reset selection visuals
+        })
+        .catch(err => {
+            Swal.fire('Payment Failed', err.message, 'error');
+        });
     });
 
-    orderTypeRadios.forEach(r => r.addEventListener('change', filterTables));
+    // --- UPDATED CHANGE CALCULATION LOGIC ---
+    function updateChange() {
+        const total = currentBillAmount; 
+        const given = parseFloat(document.getElementById('pmGiven').value) || 0;
+        const change = given - total;
+        const changeLabel = document.getElementById('pmChange');
 
-    // Run once on load to set initial state
-    filterTables();
+        if (change < 0) {
+            // Negative Case: Red text, show negative value
+            changeLabel.style.color = '#d32f2f';
+            changeLabel.textContent = '-₱' + Math.abs(change).toFixed(2);
+        } else {
+            // Normal Case: Green text
+            changeLabel.style.color = '#2e7d32';
+            changeLabel.textContent = '₱' + change.toFixed(2);
+        }
+    }
+    
+    document.getElementById('pmGiven').addEventListener('input', updateChange);
+
     </script>
 </body>
 </html>

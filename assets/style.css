@@ -291,23 +291,25 @@ main, .container {
 .btn.small { padding: 0.28rem 0.5rem; font-size: 0.9rem; border-radius:5px; min-width:70px; }
 
 
-.form-control {
-    padding: 0.6rem 0.75rem;
-    border: 1px solid #e6e6e6;
-    border-radius: 8px;
-    background: #fff;
-    min-height: 42px;
+
+/* Standardizing the Dropdowns (Select) and Inputs */
+.form-control, .select-control, #tableSelect {
+    padding: 0.75rem 1rem;
+    border: 1px solid #E6E6E6;
+    border-radius: 10px; /* Softer corners */
+    background-color: #FFFFFF;
+    font-size: 1rem;
+    color: #333;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    width: 100%;
     box-sizing: border-box;
-    font-size: 0.98rem;
 }
-.form-control:focus { outline: none; box-shadow: 0 6px 18px rgba(107,66,38,0.06); border-color: #6b4226; }
-.select-control { padding: 0.45rem 0.6rem; border:1px solid #e6e6e6; border-radius:8px; background:#fff; min-height:40px; font-size:0.95rem; }
-.form-row { display:flex; gap:0.6rem; align-items:center; margin-bottom:0.75rem; }
-.form-control.width-sm, .select-control.width-sm { flex: 0 0 160px; width:160px; }
-.form-control.flex-fill { flex: 1 1 auto; }
 
-.flex-fill { flex: 1 1 auto; }
-
+.form-control:focus, .select-control:focus, #tableSelect:focus {
+    outline: none;
+    border-color: #6B4226;
+    box-shadow: 0 0 0 3px rgba(107, 66, 38, 0.1);
+}
 body .container { display:block; margin-top: 1.2rem; }
 
 @media (max-width: 600px) {
@@ -336,7 +338,20 @@ body .container { display:block; margin-top: 1.2rem; }
 .cart-section { background:#fff; border-radius:12px; padding:1.5rem; box-shadow:0 2px 12px rgba(0,0,0,0.07); }
 .cart-header { font-size:1.3rem; font-weight:700; margin-bottom:1rem; text-align:center; border-bottom:2px solid #6B4226; padding-bottom:0.75rem; }
 .cart-items { max-height:400px; overflow-y:auto; margin-bottom:1rem; }
+.table-select-container {
+    background: #FDFBF9;
+    padding: 1rem;
+    border-radius: 12px;
+    border: 1px solid rgba(107, 66, 38, 0.1);
+    margin-bottom: 1.2rem;
+}
 
+/* Fix for the Dine-in / Take-out Toggle buttons */
+#btnDineIn, #btnTakeOut {
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
 /* THE CART ROW */
 .cart-item { display:grid !important; grid-template-columns:1fr auto auto auto !important; gap:0.5rem !important; align-items:center !important; padding:0.75rem 0 !important; border-bottom:1px solid #e0e0e0 !important; font-size:0.9rem !important; }
 
