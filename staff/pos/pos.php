@@ -684,27 +684,40 @@ try {
     const tableOptions = Array.from(tableSelect.options);
 
     function filterTables() {
-        const selectedType = document.querySelector('input[name="orderType"]:checked').value;
-        
-        // Highlight the active button
-        document.getElementById('btnDineIn').style.background = selectedType === 'physical' ? '#e8f5e9' : '#fff';
-        document.getElementById('btnDineIn').style.borderColor = selectedType === 'physical' ? '#2e7d32' : '#ddd';
-        document.getElementById('btnTakeOut').style.background = selectedType === 'virtual' ? '#e8f5e9' : '#fff';
-        document.getElementById('btnTakeOut').style.borderColor = selectedType === 'virtual' ? '#2e7d32' : '#ddd';
+    const selectedType = document.querySelector('input[name="orderType"]:checked').value;
+    
+    // 1. Reset the internal state first
+    selectedTableId = null;
+    currentOrderId = null;
+    cart = {};
 
-        // Filter the dropdown
-        tableSelect.innerHTML = '<option value="">-- Choose Table --</option>';
-        tableOptions.forEach(opt => {
-            if (opt.getAttribute('data-type') === selectedType) {
-                tableSelect.appendChild(opt);
-            }
-        });
+    // 2. Clear the visual dropdown completely
+    tableSelect.innerHTML = ''; 
+    
+    // 3. Create a fresh placeholder option every time
+    const placeholder = document.createElement('option');
+    placeholder.value = "";
+    placeholder.textContent = "-- Choose Table --";
+    placeholder.selected = true;
+    tableSelect.appendChild(placeholder);
 
-        // If we switch types, reset the selection to avoid errors
-        selectedTableId = null;
-        cart = {};
-        updateCart();
-        toggleProductLock();
+    // 4. Re-populate based on type
+    tableOptions.forEach(opt => {
+        if (opt.getAttribute('data-type') === selectedType) {
+            // Clone the option so we don't carry over old properties
+            const newOpt = opt.cloneNode(true);
+            newOpt.selected = false; 
+            tableSelect.appendChild(newOpt);
+        }
+    });
+
+    // 5. FORCE the browser to show the placeholder
+    tableSelect.value = "";
+    tableSelect.selectedIndex = 0;
+
+    // 6. Sync the UI
+    updateCart();
+    toggleProductLock();
     }
 
     orderTypeRadios.forEach(r => r.addEventListener('change', filterTables));
