@@ -4,7 +4,7 @@ date_default_timezone_set('Asia/Manila');
 $dbHost = 'localhost';
 $dbName = 'fogs';
 $dbUser = 'root';
-$dbPass = '';
+$dbPass = '290505Slol';
 
 function get_db_conn(): mysqli {
     global $dbHost, $dbUser, $dbPass, $dbName;

@@ -1,12 +1,9 @@
--- Full DB schema for FOGS application (fresh install)
--- This script drops and recreates the `fogssystem` database. Run only
--- when you intend a clean install (it will destroy existing data).
-
+-- Full DB schema for FOGS application (Updated 2026)
 DROP DATABASE IF EXISTS `fogs`;
 CREATE DATABASE `fogs` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `fogs`;
 
--- Credentials / users table
+-- 1. Credentials / Users
 CREATE TABLE `credentials` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `username` VARCHAR(64) NOT NULL UNIQUE,
@@ -19,33 +16,41 @@ CREATE TABLE `credentials` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Dining tables
-CREATE TABLE `tables` (
+-- 2. Categories Table
+CREATE TABLE `categories` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `table_number` INT NOT NULL UNIQUE,
-  `occupied` TINYINT(1) NOT NULL DEFAULT 0,
-  `status` VARCHAR(32) DEFAULT NULL,
+  `name` VARCHAR(100) NOT NULL UNIQUE,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Products
+-- 3. Dining Tables (Removed 'occupied', added 'table_type')
+CREATE TABLE `tables` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `table_number` VARCHAR(20) NOT NULL UNIQUE, -- Changed to VARCHAR for "TO-1" etc.
+  `status` ENUM('available', 'occupied', 'dirty', 'reserved') NOT NULL DEFAULT 'available',
+  `table_type` ENUM('physical', 'virtual') DEFAULT 'physical',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 4. Products (Linked to Category ID)
 CREATE TABLE `products` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `category_id` INT UNSIGNED NOT NULL,
   `name` VARCHAR(200) NOT NULL,
-  `category` VARCHAR(100) DEFAULT NULL,
   `price` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `available` TINYINT(1) NOT NULL DEFAULT 1,
   `kds` TINYINT(1) NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_category` (`category`),
+  CONSTRAINT `fk_product_category` FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON DELETE CASCADE,
   KEY `idx_available` (`available`),
   KEY `idx_kds` (`kds`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Orders
+-- 5. Orders
 CREATE TABLE `orders` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `table_id` INT UNSIGNED DEFAULT NULL,
@@ -58,13 +63,11 @@ CREATE TABLE `orders` (
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_table_id` (`table_id`),
-  KEY `idx_reference` (`reference`),
   CONSTRAINT `fk_orders_table` FOREIGN KEY (`table_id`) REFERENCES `tables`(`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_orders_checked_by` FOREIGN KEY (`checked_out_by`) REFERENCES `credentials`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Order items
-
+-- 6. Order Items (Maintained Unique Key for tracking)
 CREATE TABLE `order_items` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `order_id` INT UNSIGNED NOT NULL,
@@ -75,13 +78,11 @@ CREATE TABLE `order_items` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_order_product` (`order_id`, `product_id`),
-  KEY `idx_order_id` (`order_id`),
-  KEY `idx_product_id` (`product_id`),
   CONSTRAINT `fk_orderitems_order` FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_orderitems_product` FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Time tracking / timesheets
+-- 7. Time Tracking
 CREATE TABLE `time_tracking` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id` INT UNSIGNED NOT NULL,
@@ -91,11 +92,10 @@ CREATE TABLE `time_tracking` (
   `date` DATE NOT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_user_date` (`user_id`,`date`),
   CONSTRAINT `fk_time_user` FOREIGN KEY (`user_id`) REFERENCES `credentials`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Payments (optional audit table)
+-- 8. Payments
 CREATE TABLE `payments` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `order_id` INT UNSIGNED NOT NULL,
@@ -105,25 +105,23 @@ CREATE TABLE `payments` (
   `processed_by` INT UNSIGNED DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_pay_order` (`order_id`),
   CONSTRAINT `fk_payments_order` FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_payments_by` FOREIGN KEY (`processed_by`) REFERENCES `credentials`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Sample data (replace password hash with a real hash produced by password_hash())
-INSERT INTO `credentials` (`username`, `password`, `role`, `first_name`, `last_name`) VALUES ('admin', '$2y$10$REPLACE_WITH_HASH', 'admin', 'Site', 'Admin');
+-- --- SEED DATA ---
+INSERT INTO `categories` (`name`) VALUES ('Main'), ('Sides'), ('Drinks');
 
-INSERT INTO `tables` (`table_number`, `occupied`) VALUES (1,0),(2,0),(3,0),(4,0),(5,0);
+INSERT INTO `tables` (`table_number`, `status`, `table_type`) VALUES 
+('1', 'available', 'physical'),
+('2', 'available', 'physical'),
+('TO-1', 'available', 'virtual'),
+('TO-2', 'available', 'virtual');
 
--- Example products
-INSERT INTO `products` (`name`,`category`,`price`,`available`,`kds`) VALUES
-('Plain Rice','Sides',30.00,1,0),
-('Adobo','Main',120.00,1,1),
-('Sinigang','Main',140.00,1,1),
-('Iced Tea','Drinks',45.00,1,0);
+INSERT INTO `products` (`category_id`, `name`, `price`, `available`, `kds`) VALUES
+(1, 'Adobo', 120.00, 1, 1),
+(2, 'Plain Rice', 30.00, 1, 0),
+(3, 'Iced Tea', 45.00, 1, 0);
 
--- End of fresh-install schema
--- Helpful sample data (optional)
--- INSERT INTO `credentials` (`username`,`password`,`role`,`first_name`,`last_name`) VALUES ('admin', '<PASSWORD_HASH>', 'admin', 'Site', 'Admin');
-
--- End of schema
+INSERT INTO `credentials` (`username`, `password`, `role`, `first_name`, `last_name`) 
+VALUES ('Sharwin', '$2y$10$TXurlUDs80VNuAGi6KsVZ.BN/P5RpEhBh0XfL3KrrIlToojBt8/lK', 'admin', 'Sharwin', 'Tabila');
