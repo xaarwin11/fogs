@@ -1,22 +1,31 @@
--- Full DB schema for FOGS application (Updated 2026)
+-- Full DB schema for FOGS application (Updated Feb 2026)
 DROP DATABASE IF EXISTS `fogs`;
 CREATE DATABASE `fogs` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE `fogs`;
 
--- 1. Credentials / Users
+-- 1. Roles Table
+CREATE TABLE `roles` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `role_name` VARCHAR(50) NOT NULL UNIQUE,
+  `description` TEXT,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 2. Credentials / Users (Username Required, No Password)
 CREATE TABLE `credentials` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `username` VARCHAR(64) NOT NULL UNIQUE,
-  `password` VARCHAR(255) NOT NULL,
-  `role` VARCHAR(32) NOT NULL DEFAULT 'staff',
+  `username` VARCHAR(64) NOT NULL UNIQUE, -- Kept as required
+  `passcode` VARCHAR(255) NOT NULL UNIQUE, -- Your new login method
+  `role_id` INT UNSIGNED NOT NULL,
   `first_name` VARCHAR(100) DEFAULT NULL,
   `last_name` VARCHAR(100) DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_user_role` FOREIGN KEY (`role_id`) REFERENCES `roles`(`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 2. Categories Table
+-- 3. Categories Table
 CREATE TABLE `categories` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `name` VARCHAR(100) NOT NULL UNIQUE,
@@ -24,17 +33,17 @@ CREATE TABLE `categories` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 3. Dining Tables (Removed 'occupied', added 'table_type')
+-- 4. Dining Tables (No 'occupied' status)
 CREATE TABLE `tables` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `table_number` VARCHAR(20) NOT NULL UNIQUE, -- Changed to VARCHAR for "TO-1" etc.
-  `status` ENUM('available', 'occupied', 'dirty', 'reserved') NOT NULL DEFAULT 'available',
+  `table_number` VARCHAR(20) NOT NULL UNIQUE, 
+  `status` ENUM('available', 'dirty', 'reserved') NOT NULL DEFAULT 'available',
   `table_type` ENUM('physical', 'virtual') DEFAULT 'physical',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 4. Products (Linked to Category ID)
+-- 5. Products
 CREATE TABLE `products` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `category_id` INT UNSIGNED NOT NULL,
@@ -45,12 +54,10 @@ CREATE TABLE `products` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  CONSTRAINT `fk_product_category` FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON DELETE CASCADE,
-  KEY `idx_available` (`available`),
-  KEY `idx_kds` (`kds`)
+  CONSTRAINT `fk_product_category` FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 5. Orders
+-- 6. Orders
 CREATE TABLE `orders` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `table_id` INT UNSIGNED DEFAULT NULL,
@@ -62,12 +69,11 @@ CREATE TABLE `orders` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_table_id` (`table_id`),
   CONSTRAINT `fk_orders_table` FOREIGN KEY (`table_id`) REFERENCES `tables`(`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_orders_checked_by` FOREIGN KEY (`checked_out_by`) REFERENCES `credentials`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 6. Order Items (Maintained Unique Key for tracking)
+-- 7. Order Items
 CREATE TABLE `order_items` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `order_id` INT UNSIGNED NOT NULL,
@@ -82,7 +88,7 @@ CREATE TABLE `order_items` (
   CONSTRAINT `fk_orderitems_product` FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 7. Time Tracking
+-- 8. Time Tracking
 CREATE TABLE `time_tracking` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id` INT UNSIGNED NOT NULL,
@@ -95,7 +101,7 @@ CREATE TABLE `time_tracking` (
   CONSTRAINT `fk_time_user` FOREIGN KEY (`user_id`) REFERENCES `credentials`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 8. Payments
+-- 9. Payments
 CREATE TABLE `payments` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `order_id` INT UNSIGNED NOT NULL,
@@ -110,18 +116,13 @@ CREATE TABLE `payments` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --- SEED DATA ---
+INSERT INTO `roles` (`role_name`) VALUES ('Admin'), ('Manager'), ('Staff');
 INSERT INTO `categories` (`name`) VALUES ('Main'), ('Sides'), ('Drinks');
-
 INSERT INTO `tables` (`table_number`, `status`, `table_type`) VALUES 
-('1', 'available', 'physical'),
-('2', 'available', 'physical'),
-('TO-1', 'available', 'virtual'),
-('TO-2', 'available', 'virtual');
+('1', 'available', 'physical'), ('2', 'available', 'physical'),
+('TO-1', 'available', 'virtual'), ('TO-2', 'available', 'virtual');
 
-INSERT INTO `products` (`category_id`, `name`, `price`, `available`, `kds`) VALUES
-(1, 'Adobo', 120.00, 1, 1),
-(2, 'Plain Rice', 30.00, 1, 0),
-(3, 'Iced Tea', 45.00, 1, 0);
-
-INSERT INTO `credentials` (`username`, `password`, `role`, `first_name`, `last_name`) 
-VALUES ('Sharwin', '$2y$10$TXurlUDs80VNuAGi6KsVZ.BN/P5RpEhBh0XfL3KrrIlToojBt8/lK', 'admin', 'Sharwin', 'Tabila');
+-- Seeding Sharwin (Role ID 1 = Admin)
+-- Passcode hashed: '123456'
+INSERT INTO `credentials` (`username`, `passcode`, `role_id`, `first_name`, `last_name`) 
+VALUES ('Sharwin', '$2y$10$TXurlUDs80VNuAGi6KsVZ.BN/P5RpEhBh0XfL3KrrIlToojBt8/lK', 1, 'Sharwin', 'Tabila');

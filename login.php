@@ -1,112 +1,158 @@
 <?php
-
 require_once 'db.php';
 session_start();
 
-if (!empty($_SESSION['user_id'])) {
+// Redirect if already logged in for POS
+if (!empty($_SESSION['user_id']) && !isset($_POST['action_mode'])) {
     $role = strtolower($_SESSION['role'] ?? '');
-    if (in_array($role, ['staff', 'admin', 'manager'])) {
-        header('Location: staff/pos/pos.php');
-    } else {
-        header('Location: customer/dashboard.php');
-    }
+    header('Location: staff/pos/pos.php');
     exit;
 }
 
 $error = '';
+$success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
+    $passcode = $_POST['passcode'] ?? '';
+    $mode = $_POST['action_mode'] ?? 'login'; 
+    
+    try {
+        $mysqli = get_db_conn();
+    } catch (Exception $e) {
+        $error = 'Database connection failed.';
+        $mysqli = null;
+    }
 
-    if ($username === '' || $password === '') {
-        $error = 'Please fill in both fields.';
-    } else {
-        try {
-            $mysqli = get_db_conn();
-        } catch (Exception $e) {
-            error_log('MySQL connect error: ' . $e->getMessage());
-            $error = 'An internal error occurred. Try again later.';
-            $mysqli = null;
-        }
+    if ($mysqli && !empty($passcode)) {
+        // 1. Authenticate user by Passcode
+        $result = $mysqli->query("SELECT id, first_name, role, passcode FROM credentials WHERE passcode IS NOT NULL");
+        $user_data = null;
 
-        if ($mysqli) {
-            $mysqli->set_charset('utf8mb4');
-
-            $stmt = $mysqli->prepare('SELECT id, username, password, role FROM credentials WHERE username = ? LIMIT 1');
-            if ($stmt) {
-                $stmt->bind_param('s', $username);
-                $stmt->execute();
-                $stmt->bind_result($id, $dbUsername, $dbPasswordHash, $dbRole);
-                if ($stmt->fetch()) {
-                    if (password_verify($password, $dbPasswordHash)) {
-                        session_regenerate_id(true);
-                        $_SESSION['user_id'] = $id;
-                        $_SESSION['username'] = $dbUsername;
-                        $_SESSION['role'] = $dbRole;
-                        $stmt->close();
-                        $mysqli->close();
-                        $role = strtolower($dbRole ?? '');
-                        if (in_array($role, ['staff','admin','manager'])) {
-                            header('Location: staff/pos/pos.php');
-                        } else {
-                            header('Location: customer/dashboard.php');
-                        }
-                        exit;
-                    } else {
-                        $error = 'Invalid username or password';
-                    }
-                } else {
-                    $error = 'Invalid username or password';
-                }
-                $stmt->close();
-            } else {
-                error_log('MySQL prepare error: ' . $mysqli->error);
-                $error = 'An internal error occurred. Try again later.';
+        while ($user = $result->fetch_assoc()) {
+            if (password_verify($passcode, $user['passcode'])) {
+                $user_data = $user;
+                break;
             }
-
-            $mysqli->close();
         }
+
+        if ($user_data) {
+            if ($mode === 'login') {
+                // --- POS LOGIN ---
+                session_regenerate_id(true);
+                $_SESSION['user_id'] = $user_data['id'];
+                $_SESSION['username'] = $user_data['first_name'];
+                $_SESSION['role'] = $user_data['role'];
+                header('Location: staff/pos/pos.php');
+                exit;
+            } else {
+                // --- TIME PUNCH LOGIC (Clock In/Out Auto-Detect) ---
+                $uid = $user_data['id'];
+                
+                // Check if currently clocked in (clock_out is NULL)
+                $check = $mysqli->prepare("SELECT id, clock_in FROM time_tracking WHERE user_id = ? AND clock_out IS NULL LIMIT 1");
+                $check->bind_param("i", $uid);
+                $check->execute();
+                $active_session = $check->get_result()->fetch_assoc();
+                $check->close();
+
+                if ($active_session) {
+                    // CLOCK OUT
+                    $punch_id = $active_session['id'];
+                    $start = new DateTime($active_session['clock_in']);
+                    $end = new DateTime();
+                    $diff = $start->diff($end);
+                    $hrs = round($diff->h + ($diff->i / 60), 2);
+
+                    $upd = $mysqli->prepare("UPDATE time_tracking SET clock_out = NOW(), hours_worked = ? WHERE id = ?");
+                    $upd->bind_param("di", $hrs, $punch_id);
+                    if ($upd->execute()) {
+                        $success = "Clocked OUT: " . $user_data['first_name'] . " (" . $hrs . " hrs)";
+                    }
+                    $upd->close();
+                } else {
+                    // CLOCK IN
+                    $today = date('Y-m-d');
+                    $ins = $mysqli->prepare("INSERT INTO time_tracking (user_id, clock_in, date) VALUES (?, NOW(), ?)");
+                    $ins->bind_param("is", $uid, $today);
+                    if ($ins->execute()) {
+                        $success = "Clocked IN: " . $user_data['first_name'] . " @ " . date('h:i A');
+                    }
+                    $ins->close();
+                }
+            }
+        } else {
+            $error = 'Invalid Passcode';
+        }
+        $mysqli->close();
     }
 }
-
-?><!DOCTYPE html>
+?>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
-    <link rel="stylesheet" href="assets/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FOGS System</title>
     <style>
-        .login-container {
-            width: 100%;
-            max-width: 420px; 
-            margin: 6vh auto; 
-            padding: 20px;
-            background: #8D6E63;
-            border-radius: 10px;
-            color: #fff;
-            box-sizing: border-box;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-        }
-        .login-container input { width: 100%; padding: 8px; margin-top: 6px; border-radius: 4px; border: none; box-sizing: border-box; }
-        .login-container button { margin-top: 12px; width: 100%; padding: 10px; border-radius: 6px; border: none; background: #C58F63; color: #fff; cursor: pointer; }
-        #error { color: #ffdddd; margin-top: 8px; display:block; text-align:center; }
-        body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: linear-gradient(180deg, #F7F4F0 0%, #F2E7D5 100%); }
+        :root { --p-brown: #8D6E63; --d-brown: #6B4226; --tan: #C58F63; --cream: #F2E7D5; }
+        body { margin: 0; font-family: sans-serif; background: var(--cream); display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        .login-container { width: 100%; max-width: 380px; background: var(--p-brown); padding: 30px; border-radius: 20px; color: white; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .mode-selector { display: flex; background: rgba(0,0,0,0.2); border-radius: 10px; margin-bottom: 20px; padding: 5px; }
+        .mode-btn { flex: 1; padding: 12px; border: none; background: transparent; color: white; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .mode-btn.active { background: var(--tan); }
+        #pass-display { width: 100%; font-size: 2.2rem; background: rgba(0,0,0,0.2); border: none; color: white; text-align: center; margin-bottom: 20px; padding: 15px 0; border-radius: 10px; letter-spacing: 10px; }
+        .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .btn { padding: 20px; font-size: 1.5rem; border: none; border-radius: 12px; background: var(--tan); color: white; cursor: pointer; }
+        .btn:active { background: var(--d-brown); transform: scale(0.98); }
+        .btn.clear { background: #c62828; }
+        .btn.enter { background: #2e7d32; font-size: 1rem; }
+        .msg { margin-top: 15px; font-weight: bold; padding: 10px; border-radius: 8px; }
+        .error { background: #ef5350; }
+        .success { background: #66bb6a; }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <img src="assets/logo.png" alt="Logo" style="display:block;margin:0 auto 12px;max-width:100px;">
-        <h2 style="text-align:center;margin:0 0 8px;color:#fff;">Login</h2>
-        <form method="POST" action="">
-            <br><label for="username">Username</label>
-            <input type="text" id="username" name="username" required value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username'], ENT_QUOTES, 'UTF-8') : ''; ?>">
-            <br><br><label for="password">Password</label>
-            <input type="password" id="password" name="password" required>
-            <label id="error"><?php echo $error ? htmlspecialchars($error, ENT_QUOTES, 'UTF-8') : ''; ?></label>
-            <button type="submit">Login</button>
-        </form>
+
+<div class="login-container">
+    <img src="assets/logo.png" style="max-width:70px; margin-bottom:10px;">
+    <h2 style="margin-bottom: 20px;">FOGS SYSTEM</h2>
+
+    <div class="mode-selector">
+        <button type="button" id="t-login" class="mode-btn active" onclick="setMode('login')">POS LOGIN</button>
+        <button type="button" id="t-punch" class="mode-btn" onclick="setMode('punch')">TIME PUNCH</button>
     </div>
+    
+    <form method="POST">
+        <input type="hidden" name="action_mode" id="action_mode" value="login">
+        <input type="password" name="passcode" id="pass-display" readonly placeholder="••••">
+        
+        <div class="numpad">
+            <?php for($i=1; $i<=9; $i++): ?>
+                <button type="button" class="btn" onclick="press('<?php echo $i; ?>')"><?php echo $i; ?></button>
+            <?php endfor; ?>
+            <button type="button" class="btn clear" onclick="press('C')">C</button>
+            <button type="button" class="btn" onclick="press('0')">0</button>
+            <button type="submit" class="btn enter">ENTER</button>
+        </div>
+    </form>
+    
+    <?php if($error): ?><div class="msg error"><?php echo $error; ?></div><?php endif; ?>
+    <?php if($success): ?><div class="msg success"><?php echo $success; ?></div><?php endif; ?>
+</div>
+
+<script>
+    let code = "";
+    const disp = document.getElementById('pass-display');
+    function setMode(m) {
+        document.getElementById('action_mode').value = m;
+        document.getElementById('t-login').classList.toggle('active', m==='login');
+        document.getElementById('t-punch').classList.toggle('active', m==='punch');
+        code = ""; disp.value = "";
+    }
+    function press(v) {
+        if(v==='C') code = ""; else code += v;
+        disp.value = code;
+    }
+</script>
 </body>
 </html>
