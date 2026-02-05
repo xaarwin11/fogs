@@ -81,6 +81,7 @@ CREATE TABLE `order_items` (
   `quantity` INT UNSIGNED NOT NULL DEFAULT 1,
   `served` INT UNSIGNED NOT NULL DEFAULT 0,
   `price` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `kitchen_printed` INT UNSIGNED NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ux_order_product` (`order_id`, `product_id`),
