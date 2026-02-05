@@ -4,7 +4,6 @@ session_start();
 
 // Redirect if already logged in for POS
 if (!empty($_SESSION['user_id']) && !isset($_POST['action_mode'])) {
-    $role = strtolower($_SESSION['role'] ?? '');
     header('Location: staff/pos/pos.php');
     exit;
 }
@@ -24,8 +23,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($mysqli && !empty($passcode)) {
-        // 1. Authenticate user by Passcode
-        $result = $mysqli->query("SELECT id, first_name, role, passcode FROM credentials WHERE passcode IS NOT NULL");
+        // 1. Updated Query: Join roles table to get the role_name
+        $sql = "SELECT c.id, c.first_name, r.role_name, c.passcode 
+                FROM credentials c 
+                JOIN roles r ON c.role_id = r.id";
+        $result = $mysqli->query($sql);
         $user_data = null;
 
         while ($user = $result->fetch_assoc()) {
@@ -41,14 +43,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 session_regenerate_id(true);
                 $_SESSION['user_id'] = $user_data['id'];
                 $_SESSION['username'] = $user_data['first_name'];
-                $_SESSION['role'] = $user_data['role'];
+                // Set the role name (lowercase) for consistency with your checks
+                $_SESSION['role'] = strtolower($user_data['role_name']); 
+                
                 header('Location: staff/pos/pos.php');
                 exit;
             } else {
-                // --- TIME PUNCH LOGIC (Clock In/Out Auto-Detect) ---
+                // --- TIME PUNCH LOGIC ---
                 $uid = $user_data['id'];
                 
-                // Check if currently clocked in (clock_out is NULL)
+                // Check for active session
                 $check = $mysqli->prepare("SELECT id, clock_in FROM time_tracking WHERE user_id = ? AND clock_out IS NULL LIMIT 1");
                 $check->bind_param("i", $uid);
                 $check->execute();
@@ -61,7 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $start = new DateTime($active_session['clock_in']);
                     $end = new DateTime();
                     $diff = $start->diff($end);
-                    $hrs = round($diff->h + ($diff->i / 60), 2);
+                    // Standard hours calculation
+                    $hrs = round($diff->h + ($diff->i / 60) + ($diff->s / 3600), 2);
 
                     $upd = $mysqli->prepare("UPDATE time_tracking SET clock_out = NOW(), hours_worked = ? WHERE id = ?");
                     $upd->bind_param("di", $hrs, $punch_id);

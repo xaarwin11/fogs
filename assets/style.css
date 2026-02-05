@@ -366,13 +366,32 @@ body .container { display:block; margin-top: 1.2rem; }
 .item-remove:hover { background:#d63939; }
 .cart-total { font-size:1.4rem; font-weight:700; text-align:right; padding:1rem 0; border-top:2px solid #6B4226; margin:1rem 0; }
 .cart-actions { display:flex; gap:0.75rem; flex-direction:column; }
-.checkout-btn, .save-btn, .clear-btn { padding:0.75rem; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:1rem; transition:background 0.2s; }
+.checkout-btn, .save-btn, .clear-btn, .printBillBtn { padding:0.75rem; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:1rem; transition:background 0.2s; }
 .checkout-btn { background:#2e7d32; color:#fff; }
 .checkout-btn:hover { background:#24601e; }
 .save-btn { background:#1976d2; color:#fff; }
 .save-btn:hover { background:#0d5aa8; }
 .clear-btn { background:#e0e0e0; color:#333; }
 .clear-btn:hover { background:#ccc; }
+.printBillBtn {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+    background: #546e7a; /* Slate Blue/Grey */
+    color: white;
+}
+
+.printBillBtn:hover {
+    background: #455a64;
+}
+
+.printBillBtn:active {
+    transform: translateY(1px);
+}
 .table-select { margin-bottom:1.5rem; }
 .table-select select { width:100%; padding:0.75rem; border:1px solid #ccc; border-radius:6px; font-size:1rem; }
 .empty-cart { text-align:center; color:#999; padding:1rem; }
