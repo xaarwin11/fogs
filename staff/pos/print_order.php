@@ -81,9 +81,11 @@ try {
     if (!$printer->isValid()) throw new Exception("Printer " . $p_conf['path'] . " not reachable");
 
     // --- STEP D: DATA PREP (HARDWARE & META) ---
+    // --- STEP D: DATA PREP (HARDWARE & META) ---
     $options = [
-        'beep' => (bool)$p_conf['beep_on_print'],
-        'cut'  => (bool)$p_conf['cut_after_print']
+        // Convert to int first so "0" becomes 0 (false) and "1" becomes 1 (true)
+        'beep' => (int)$p_conf['beep_on_print'] === 1,
+        'cut'  => (int)$p_conf['cut_after_print'] === 1
     ];
 
     $business_query = $mysqli->query("SELECT setting_key, setting_value FROM system_settings WHERE category = 'business'");

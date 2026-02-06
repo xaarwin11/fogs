@@ -43,7 +43,10 @@ class PrinterService
         // 1. FIX: Initialize total to avoid "Undefined variable" error
         $total = 0;
 
-        if (!empty($options['beep'])) $this->printer->pulse();
+        if (!empty($options['beep'])) {
+            $this->printer->pulse();
+        }
+
 
         if ($showPrice) {
             try {
@@ -72,6 +75,14 @@ class PrinterService
             
             if (!empty($meta['Address'])) $this->printer->text($meta['Address'] . "\n");
             if (!empty($meta['Phone'])) $this->printer->text("Tel: " . $meta['Phone'] . "\n");
+            $this->printer->feed(1);
+            $this->printer->setEmphasis(true);
+            $this->printer->setJustification(Printer::JUSTIFY_CENTER);
+            $this->printer->selectPrintMode(Printer::MODE_DOUBLE_HEIGHT);
+            $this->printer->text("BILL STATEMENT\n");
+            $this->printer->setEmphasis(false);
+            $this->printer->selectPrintMode(Printer::MODE_FONT_A);
+            $this->printer->text(str_repeat("=", $this->charLimit) . "\n");
         } else {
             $this->printer->selectPrintMode(Printer::MODE_FONT_A);
         }
@@ -83,19 +94,7 @@ class PrinterService
         
         if (isset($meta['Staff'])) $this->printer->text("STAFF: " . $meta['Staff'] . "\n");
         if (isset($meta['Date']))  $this->printer->text("TIME:  " . $meta['Date'] . "\n");
-
-
-        if ($showPrice){
-            $this->printer->feed(1);
-            $this->printer->setEmphasis(true);
-            $this->printer->setJustification(Printer::JUSTIFY_CENTER);
-            $this->printer->selectPrintMode(Printer::MODE_DOUBLE_HEIGHT);
-            $this->printer->text("BILL STATEMENT\n");
-            $this->printer->setEmphasis(false);
-            $this->printer->selectPrintMode(Printer::MODE_FONT_A);
-            $this->printer->text(str_repeat("=", $this->charLimit) . "\n");
-        }
-            
+        $this->printer->text(str_repeat("-", $this->charLimit) . "\n");
 
         // --- 3. ITEMS LOOP ---
         foreach ($items as $item) {
@@ -129,11 +128,17 @@ class PrinterService
             $this->printer->text("This is not your OFFICIAL RECEIPT!\n");
         }
 
-        // --- 5. FINISHING ---
         $this->printer->feed(3);
-        if (!empty($options['cut'])) {
-            $this->printer->cut();
-        }
+
+                if (($options['cut'] ?? 0) == 1) {
+                    // GS V 1 (Hex: 1d 56 01)
+                    // This is the raw "Dumb Cut" command. 
+                    // It often bypasses the internal buzzer that the standard cut() triggers.
+                    $this->connector->write("\x1d\x56\x01");
+                } else {
+                    $this->printer->feed(3);
+                }
+
         $this->printer->close();
     }
 }
