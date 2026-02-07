@@ -1,75 +1,101 @@
 <?php
-
 require_once __DIR__ . '/../../db.php';
 session_start();
-
 header('Content-Type: application/json');
 
-$role = strtolower($_SESSION['role'] ?? '');
-if (!in_array($role, ['staff','admin','manager'])) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'Forbidden']);
-    exit;
-}
+$table_id = $_GET['table_id'] ?? null;
 
-$table_id = intval($_GET['table_id'] ?? 0);
 if (!$table_id) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Missing table_id']);
+    echo json_encode(['success' => false, 'error' => 'No table selected']);
     exit;
 }
 
 try {
     $mysqli = get_db_conn();
     
-    // Step 1: Find if there is an open order for this table
-    $stmt = $mysqli->prepare("SELECT id FROM `orders` WHERE table_id = ? AND status != 'paid' LIMIT 1");
+    // 1. Find the open order
+    $stmt = $mysqli->prepare("SELECT id FROM orders WHERE table_id = ? AND status = 'open' LIMIT 1");
     $stmt->bind_param('i', $table_id);
     $stmt->execute();
-    $order_res = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    $order_id = $order_res ? (int)$order_res['id'] : null;
-    $items = [];
-
-    // Step 2: If an order exists, get the items (if any)
-    if ($order_id) {
-        $stmt = $mysqli->prepare("
-            SELECT oi.id as item_id, p.id as product_id, p.name, 
-                   COALESCE(oi.price, p.price) as price, 
-                   oi.quantity, oi.served
-            FROM `order_items` oi
-            JOIN `products` p ON oi.product_id = p.id
-            WHERE oi.order_id = ?
-        ");
-        $stmt->bind_param('i', $order_id);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        
-        while ($row = $res->fetch_assoc()) {
-            $items[] = [
-                'item_id'    => (int)$row['item_id'],
-                'product_id' => (int)$row['product_id'],
-                'name'       => $row['name'],
-                'price'      => (float)$row['price'],
-                'quantity'   => (int)$row['quantity'],
-                'served'     => (int)$row['served']
-            ];
-        }
-        $stmt->close();
-    }
+    $order = $stmt->get_result()->fetch_assoc();
     
-    echo json_encode([
-        'success'  => true,
-        'order_id' => $order_id,
-        'table_id' => (int)$table_id,
-        'items'    => $items
-    ]);
-} catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
-    exit;
-}
+    if (!$order) {
+        echo json_encode(['success' => true, 'items' => [], 'order_id' => null]);
+        exit;
+    }
 
-$mysqli->close();
+    $order_id = $order['id'];
+
+    // 2. Fetch items with Variation and Financial details
+    $sql = "SELECT 
+                oi.id as order_item_id,
+                oi.product_id,
+                oi.variation_id,
+                oi.quantity,
+                oi.base_price,
+                oi.modifier_total,
+                oi.discount_amount,
+                oi.notes,
+                oi.served,
+                p.name as product_name,
+                pv.name as variation_name
+            FROM order_items oi
+            JOIN products p ON oi.product_id = p.id
+            LEFT JOIN product_variations pv ON oi.variation_id = pv.id
+            WHERE oi.order_id = ?";
+            
+    $stmt = $mysqli->prepare($sql);
+    $stmt->bind_param('i', $order_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $items = [];
+    while ($row = $result->fetch_assoc()) {
+        $order_item_id = (int)$row['order_item_id'];
+        
+        // 3. PRO LOGIC: Fetch Modifiers for this specific order item
+        $mods = [];
+        $mod_ids = [];
+        $m_stmt = $mysqli->prepare("SELECT modifier_id, name, price FROM order_item_modifiers WHERE order_item_id = ?");
+        $m_stmt->bind_param('i', $order_item_id);
+        $m_stmt->execute();
+        $m_res = $m_stmt->get_result();
+        while($m_row = $m_res->fetch_assoc()){
+            $mods[] = [
+                'id' => $m_row['modifier_id'],
+                'name' => $m_row['name'],
+                'price' => (float)$m_row['price']
+            ];
+            $mod_ids[] = $m_row['modifier_id'];
+        }
+        $m_stmt->close();
+
+        // 4. GENERATE THE PRO KEY (Must match JS: p[ID]_v[VAR]_m[MODS])
+        sort($mod_ids);
+        $mod_string = count($mod_ids) > 0 ? implode('-', $mod_ids) : '0';
+        $v_id = $row['variation_id'] ?? 0;
+        $u_key = "p" . $row['product_id'] . "_v" . $v_id . "_m" . $mod_string;
+
+        $items[] = [
+            'order_item_id' => $order_item_id,
+            'unique_key'    => $u_key,
+            'product_id'    => (int)$row['product_id'],
+            'size_id'       => $row['variation_id'],
+            'name'          => $row['product_name'],
+            'variation_name'=> $row['variation_name'],
+            'quantity'      => (int)$row['quantity'],
+            'base_price'    => (float)$row['base_price'],
+            'modifier_total'=> (float)$row['modifier_total'],
+            'discount_amount' => (float)$row['discount_amount'],
+            'modifiers'     => $mods,
+            'notes'         => $row['notes'],
+            'served'        => (int)$row['served']
+        ];
+    }
+
+    echo json_encode(['success' => true, 'order_id' => $order_id, 'items' => $items]);
+
+} catch (Exception $e) {
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+}
 ?>

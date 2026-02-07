@@ -21,8 +21,8 @@ try {
     $mysqli = get_db_conn();
 
     if ($id) {
-        // Updated to JOIN with categories table
-        $sql = "SELECT p.id, p.name, p.price, p.available, p.kds, c.name AS category_name, p.category_id 
+        // Updated: Added p.has_variation
+        $sql = "SELECT p.id, p.name, p.price, p.available, p.kds, p.has_variation, c.name AS category_name, p.category_id 
                 FROM products p 
                 LEFT JOIN categories c ON p.category_id = c.id 
                 WHERE p.id = ? LIMIT 1";
@@ -37,7 +37,7 @@ try {
             $p['price'] = (float)$p['price'];
             $p['available'] = (bool)$p['available'];
             $p['kds'] = (bool)$p['kds'];
-            // For the frontend grouping logic, we keep the label consistent
+            $p['has_variation'] = (int)$p['has_variation']; // Signal for JS
             $p['category'] = $p['category_name'] ?? 'Uncategorized'; 
         }
 
@@ -46,8 +46,8 @@ try {
         exit;
     }
 
-    // Fetch all available products grouped by category name
-    $sql = "SELECT p.id, p.name, p.price, p.available, p.kds, c.name AS category_name 
+    // Updated: Added p.has_variation to the grouped fetch
+    $sql = "SELECT p.id, p.name, p.price, p.available, p.kds, p.has_variation, c.name AS category_name 
             FROM products p 
             LEFT JOIN categories c ON p.category_id = c.id 
             WHERE p.available = 1 
@@ -65,7 +65,8 @@ try {
             'name' => $row['name'],
             'price' => (float)$row['price'],
             'available' => (bool)$row['available'],
-            'kds' => (bool)$row['kds']
+            'kds' => (bool)$row['kds'],
+            'has_variation' => (int)$row['has_variation'] // Signal for JS
         ];
     }
 

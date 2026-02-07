@@ -3,26 +3,33 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use Mike42\Escpos\Printer;
 use Mike42\Escpos\EscposImage;
 use Mike42\Escpos\PrintConnectors\WindowsPrintConnector;
+use Mike42\Escpos\PrintConnectors\NetworkPrintConnector; // Added for LAN
 
 class PrinterService
 {
     private $printer = null;
     private $connector = null;
-    private $error = null;
-    private $charLimit; 
+    private $charLimit;
 
     public function __construct($type, $path, $charLimit = 48)
     {
         $this->charLimit = $charLimit;
         try {
-            if ($type !== 'usb') {
-                throw new Exception("Unsupported printer type");
+            // This detects the "connection_type" column from your database
+            if ($type === 'network' || $type === 'lan') { 
+                // Uses the IP address stored in the "path" column
+                $this->connector = new \Mike42\Escpos\PrintConnectors\NetworkPrintConnector($path, 9100);
+            } elseif ($type === 'usb') {
+                // Uses the printer name stored in the "path" column
+                $this->connector = new WindowsPrintConnector($path);
+            } else {
+                throw new Exception("Unsupported printer type: " . $type);
             }
-            $this->connector = new WindowsPrintConnector($path);
-            $this->printer   = new Printer($this->connector);
+
+            $this->printer = new Printer($this->connector);
         } catch (Exception $e) {
             $this->printer = null;
-            $this->error   = $e->getMessage();
+            // For debugging, you can log $e->getMessage();
         }
     }
 
@@ -40,33 +47,25 @@ class PrinterService
     {
         if (!$this->printer) throw new Exception("Printer not initialized");
 
-        // 1. FIX: Initialize total to avoid "Undefined variable" error
         $total = 0;
 
-        if (!empty($options['beep'])) {
-            $this->printer->pulse();
+        // Beep only if explicitly requested and not suppressed by hardware
+        // NEW CODE - Uses the proper ESC/POS beep command
+        if (($options['beep'] ?? 0) == 1) {
+            // \x1b\x42 is the command for "Buzzer" 
+            // \x02\x02 means beep 2 times for 200ms
+            $this->connector->write("\x1b\x42\x02\x02");
         }
-
 
         if ($showPrice) {
             try {
                 $logo = EscposImage::load(__DIR__ . "/../assets/print.png");
-
-                // 1. Reset printer state
                 $this->printer->initialize(); 
-
-                // 2. Set justification to CENTER
                 $this->printer->setJustification(Printer::JUSTIFY_CENTER);
-                
-                // 3. Print the image using bitImage. 
-                // Mode 0 is the standard, non-stretched size.
                 $this->printer->bitImage($logo, 0); 
-                
-                // 4. Feed a line and reset to LEFT for the billing text
                 $this->printer->feed(1);
-
             } catch (Exception $e) {
-                // Silence errors to prevent garbage text on paper
+                // Logo fail shouldn't stop the print
             }
 
             $this->printer->selectPrintMode(Printer::MODE_DOUBLE_WIDTH);
@@ -83,20 +82,19 @@ class PrinterService
             $this->printer->setEmphasis(false);
             $this->printer->selectPrintMode(Printer::MODE_FONT_A);
             $this->printer->text(str_repeat("=", $this->charLimit) . "\n");
-        } else {
-            $this->printer->selectPrintMode(Printer::MODE_FONT_A);
         }
-        // --- 2. SHARED INFO ---
+
         $this->printer->setJustification(Printer::JUSTIFY_LEFT);
-        $this->printer->setEmphasis(true);
-        if (isset($meta['Table'])) $this->printer->text("TABLE: " . $meta['Table'] . "\n");
-        $this->printer->setEmphasis(false);
+        if (isset($meta['Table'])) {
+            $this->printer->setEmphasis(true);
+            $this->printer->text("TABLE: " . $meta['Table'] . "\n");
+            $this->printer->setEmphasis(false);
+        }
         
         if (isset($meta['Staff'])) $this->printer->text("STAFF: " . $meta['Staff'] . "\n");
         if (isset($meta['Date']))  $this->printer->text("TIME:  " . $meta['Date'] . "\n");
         $this->printer->text(str_repeat("-", $this->charLimit) . "\n");
 
-        // --- 3. ITEMS LOOP ---
         foreach ($items as $item) {
             $qty   = (int)$item['quantity'];
             $name  = $item['name'];
@@ -105,9 +103,7 @@ class PrinterService
             $total += $lineTotal; 
             
             if ($showPrice) {
-                $leftStr = $qty . "x " . $name;
-                $rightStr = number_format($lineTotal, 2);
-                $this->printer->text($this->columnize($leftStr, $rightStr));
+                $this->printer->text($this->columnize($qty . "x " . $name, number_format($lineTotal, 2)));
             } else {
                 $this->printer->selectPrintMode(Printer::MODE_DOUBLE_HEIGHT | Printer::MODE_DOUBLE_WIDTH);
                 $this->printer->text($qty . "x " . $name . "\n");
@@ -116,7 +112,6 @@ class PrinterService
             }
         }
 
-        // --- 4. FOOTER ---
         if ($showPrice) {
             $this->printer->text(str_repeat("=", $this->charLimit) . "\n");
             $this->printer->setEmphasis(true);
@@ -125,20 +120,16 @@ class PrinterService
             $this->printer->feed(1);
             $this->printer->setJustification(Printer::JUSTIFY_CENTER);
             $this->printer->text("Thank you for dining with us!\n");
-            $this->printer->text("This is not your OFFICIAL RECEIPT!\n");
         }
 
         $this->printer->feed(3);
 
-                if (($options['cut'] ?? 0) == 1) {
-                    // GS V 1 (Hex: 1d 56 01)
-                    // This is the raw "Dumb Cut" command. 
-                    // It often bypasses the internal buzzer that the standard cut() triggers.
-                    $this->connector->write("\x1d\x56\x01");
-                } else {
-                    $this->printer->feed(3);
-                }
-
+        if (($options['cut'] ?? 0) == 1) {
+            $this->printer->cut();
+        } else {
+            $this->printer->feed(3);
+        }
+        $this->printer->cut();
         $this->printer->close();
     }
 }

@@ -1,135 +1,143 @@
 <?php
-
 require_once __DIR__ . '/../../db.php';
 session_start();
-
 header('Content-Type: application/json');
 
+// 1. Security Check
 $role = strtolower($_SESSION['role'] ?? '');
-if (!in_array($role, ['staff','admin','manager'])) {
+if (!in_array($role, ['staff', 'admin', 'manager'])) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Forbidden']);
     exit;
 }
 
-$data = json_decode(file_get_contents('php://input'), true);
-$table_id = intval($data['table_id'] ?? 0);
-$items = $data['items'] ?? [];
+$input = json_decode(file_get_contents('php://input'), true);
+$table_id = $input['table_id'] ?? null;
+$items = $input['items'] ?? []; 
 
-// HARD WALL: If no items, kill the script immediately. 
-// No Order ID will be created.
-if (empty($items)) {
-    echo json_encode(['success' => true, 'order_id' => 0, 'message' => 'No items to save']);
+if (!$table_id) {
+    echo json_encode(['success' => false, 'error' => 'No table selected']);
     exit;
 }
-
-// ... rest of your code (try/catch, etc)
 
 try {
     $mysqli = get_db_conn();
     $mysqli->begin_transaction();
 
-    // NEW: If there are no items and no existing order, just stop here successfully.
-    if (empty($items)) {
-        // If an order exists but we are clearing it (items is empty), 
-        // we handle the deletion of unserved items.
-        $stmt = $mysqli->prepare('SELECT id FROM `orders` WHERE table_id = ? AND status != "paid" LIMIT 1');
-        $stmt->bind_param('i', $table_id);
-        $stmt->execute();
-        $existing = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-
-        if ($existing) {
-            $order_id = $existing['id'];
-            // Remove only items not yet served
-            $mysqli->query("DELETE FROM `order_items` WHERE order_id = $order_id AND served = 0");
-            
-            // OPTIONAL: If order is now totally empty (no served items left), delete the order too
-            $checkEmpty = $mysqli->query("SELECT COUNT(*) as count FROM order_items WHERE order_id = $order_id");
-            if ($checkEmpty->fetch_assoc()['count'] == 0) {
-                $mysqli->query("DELETE FROM `orders` WHERE id = $order_id");
-                $order_id = null;
-            }
-        }
-        
-        $mysqli->commit();
-        echo json_encode(['success' => true, 'order_id' => $order_id ?? 0]);
-        exit;
-    }
-
-    // --- LOGIC FOR WHEN ITEMS EXIST ---
-
-    // 1. Get or Create Order ONLY if we have items
-    $stmt = $mysqli->prepare('SELECT id FROM `orders` WHERE table_id = ? AND status != "paid" LIMIT 1');
+    // 2. Find or create the open order
+    $stmt = $mysqli->prepare("SELECT id FROM orders WHERE table_id = ? AND status = 'open' LIMIT 1");
     $stmt->bind_param('i', $table_id);
     $stmt->execute();
-    $existing_order = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+    $order = $stmt->get_result()->fetch_assoc();
+    $order_id = $order ? (int)$order['id'] : null;
 
-    $order_id = $existing_order ? (int)$existing_order['id'] : null;
-    
     if (!$order_id) {
-        $stmt = $mysqli->prepare('INSERT INTO `orders` (table_id, status) VALUES (?, "open")');
+        $stmt = $mysqli->prepare("INSERT INTO orders (table_id, status, created_at) VALUES (?, 'open', NOW())");
         $stmt->bind_param('i', $table_id);
         $stmt->execute();
         $order_id = $mysqli->insert_id;
-        $stmt->close();
     }
 
-    // 2. UPSERT Logic remains the same...
-    // ... rest of your foreach loop ...
+    $processed_item_ids = [];
+    $sync_map = [];
 
-    // 2. SMART SAVE: Use UPSERT
-    // This updates the quantity if the item exists, but LEAVES the 'served' count alone.
-    $upsertStmt = $mysqli->prepare("
-        INSERT INTO `order_items` (order_id, product_id, quantity, price, served) 
-        VALUES (?, ?, ?, (SELECT price FROM products WHERE id = ?), 0)
-        ON DUPLICATE KEY UPDATE quantity = VALUES(quantity)
-    ");
-
-    $active_pids = [];
+    // 3. Process each item in the cart
     foreach ($items as $item) {
-        $pid = intval($item['product_id']);
-        $qty = intval($item['quantity']);
-        if ($pid <= 0 || $qty <= 0) continue;
+        $db_item_id = !empty($item['order_item_id']) ? (int)$item['order_item_id'] : null;
+        $u_key   = $item['unique_key'] ?? null;
+        $prod_id = (int)$item['product_id'];
+        $var_id  = !empty($item['variation_id']) ? (int)$item['variation_id'] : null;
+        $qty     = (int)$item['quantity'];
+        $notes   = $item['notes'] ?? '';
+        
+        // Base financial data
+        $base_price = (float)($item['base_price'] ?? 0);
+        $discount_amt = (float)($item['discount_amount'] ?? 0);
 
-        // NEW: SAFETY CHECK
-        $check = $mysqli->prepare("SELECT served, quantity FROM order_items WHERE order_id = ? AND product_id = ?");
-        $check->bind_param('ii', $order_id, $pid);
-        $check->execute();
-        $res = $check->get_result()->fetch_assoc();
-        $check->close();
-
-        if ($res && $qty < (int)$res['served']) {
-            // Throw an error if they try to save a quantity less than what was served
-            throw new Exception("Cannot reduce quantity for product ID $pid. " . $res['served'] . " items already served.");
+        // RE-CALCULATE MODIFIER TOTALS (Unit Price vs Line Total)
+        $single_item_mod_sum = 0;
+        if (!empty($item['modifiers'])) {
+            foreach ($item['modifiers'] as $mod) {
+                $single_item_mod_sum += (float)$mod['price'];
+            }
         }
 
-        $active_pids[] = $pid;
-        $upsertStmt->bind_param('iiii', $order_id, $pid, $qty, $pid);
-        $upsertStmt->execute();
-    }
-    
-    $upsertStmt->close();
+        // Logic: (Base + Unit Modifiers) * Quantity - Discount
+        $modifier_total_for_line = $single_item_mod_sum * $qty;
+        $line_total = (($base_price + $single_item_mod_sum) * $qty) - $discount_amt;
 
-    // 3. REMOVE items deleted from cart ONLY if served = 0
-    if (!empty($active_pids)) {
-        $pid_list = implode(',', $active_pids);
-        $mysqli->query("DELETE FROM `order_items` 
-                        WHERE order_id = $order_id 
-                        AND product_id NOT IN ($pid_list) 
-                        AND served = 0");
+        if ($db_item_id) {
+            // UPDATE EXISTING ITEM
+            $stmt = $mysqli->prepare("UPDATE order_items SET 
+                quantity = ?, base_price = ?, modifier_total = ?, 
+                discount_amount = ?, line_total = ?, notes = ?, variation_id = ? 
+                WHERE id = ? AND order_id = ?");
+            $stmt->bind_param('idddssiii', $qty, $base_price, $modifier_total_for_line, $discount_amt, $line_total, $notes, $var_id, $db_item_id, $order_id);
+            $stmt->execute();
+            $processed_item_ids[] = $db_item_id;
+        } else {
+            // INSERT NEW ITEM
+            $stmt = $mysqli->prepare("INSERT INTO order_items 
+                (unique_key, order_id, product_id, variation_id, quantity, base_price, modifier_total, discount_amount, line_total, notes) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param('siiiidddds', $u_key, $order_id, $prod_id, $var_id, $qty, $base_price, $modifier_total_for_line, $discount_amt, $line_total, $notes);
+            $stmt->execute();
+            $db_item_id = $mysqli->insert_id;
+            $processed_item_ids[] = $db_item_id;
+        }
+        
+        // Map the unique_key to the database ID so JS can stay synced
+        if ($u_key) $sync_map[$u_key] = $db_item_id;
+
+        // 4. REFRESH MODIFIERS (The unit-price storage)
+        $m_del = $mysqli->prepare("DELETE FROM order_item_modifiers WHERE order_item_id = ?");
+        $m_del->bind_param('i', $db_item_id);
+        $m_del->execute();
+
+        if (!empty($item['modifiers'])) {
+            $mi_stmt = $mysqli->prepare("INSERT INTO order_item_modifiers (order_item_id, modifier_id, name, price) VALUES (?, ?, ?, ?)");
+            foreach ($item['modifiers'] as $mod) {
+                $mod_id = (int)$mod['id'];
+                $mod_name = $mod['name'];
+                $mod_price = (float)$mod['price'];
+                $mi_stmt->bind_param('iisd', $db_item_id, $mod_id, $mod_name, $mod_price);
+                $mi_stmt->execute();
+            }
+        }
     }
+
+    // 5. DELETE removed items (Items that were in the DB but are no longer in the JS cart)
+    if (!empty($processed_item_ids)) {
+        $placeholders = implode(',', array_fill(0, count($processed_item_ids), '?'));
+        $del_sql = "DELETE FROM order_items WHERE order_id = ? AND served = 0 AND id NOT IN ($placeholders)";
+        $stmt = $mysqli->prepare($del_sql);
+        $stmt->bind_param('i' . str_repeat('i', count($processed_item_ids)), $order_id, ...$processed_item_ids);
+        $stmt->execute();
+    } else {
+        // If the cart sent is empty, delete all unserved items
+        $mysqli->query("DELETE FROM order_items WHERE order_id = $order_id AND served = 0");
+    }
+
+    // 6. UPDATE MAIN ORDER TOTALS
+    // We sum the line_totals (which already have discounts subtracted)
+    $stmt = $mysqli->prepare("UPDATE orders SET 
+        subtotal = (SELECT COALESCE(SUM(line_total + discount_amount), 0) FROM order_items WHERE order_id = ?),
+        grand_total = (SELECT COALESCE(SUM(line_total), 0) FROM order_items WHERE order_id = ?),
+        updated_at = NOW()
+        WHERE id = ?");
+    $stmt->bind_param('iii', $order_id, $order_id, $order_id);
+    $stmt->execute();
 
     $mysqli->commit();
-    echo json_encode(['success' => true, 'order_id' => $order_id]);
+    echo json_encode([
+        'success' => true, 
+        'order_id' => $order_id, 
+        'sync_map' => $sync_map,
+        'message' => 'Order synchronized successfully'
+    ]);
 
-} catch (Exception $ex) {
-    $mysqli->rollback();
-    error_log('save_pos_cart error: ' . $ex->getMessage());
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => $ex->getMessage()]);
+} catch (Exception $e) {
+    if (isset($mysqli)) $mysqli->rollback();
+    error_log("Save Order Error: " . $e->getMessage());
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
-
-$mysqli->close();
-?>

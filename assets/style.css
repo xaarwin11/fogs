@@ -323,7 +323,7 @@ body .container { display:block; margin-top: 1.2rem; }
 }
 
 /* POS Page - EXACT PORT FROM PHP */
-.pos-container { display:grid; grid-template-columns:1fr 300px; gap:3rem; max-width:1200px; margin:2rem auto; padding:1rem; }
+.pos-container { display:grid; grid-template-columns:1fr 350px; gap:3rem; max-width:1200px; margin:2rem auto; padding:1rem; }
 .products-section {padding-right: 1rem; border-right: 1px solid #eee; }
 .product-categories { display:flex; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap; }
 .category-tab { padding:0.5rem 1rem; background:#e8dfd2; color:#333; border:none; border-radius:6px; cursor:pointer; font-weight:600; transition:background 0.2s; }
@@ -549,7 +549,7 @@ body .container { display:block; margin-top: 1.2rem; }
         box-sizing: border-box !important;
     }
     .products-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
-    .cart-section { width: 100% !important; margin-top: 15px !important; box-sizing: border-box !important; }
+    .cart-section { width: 110% !important; margin-top: 15px !important; box-sizing: border-box !important; }
     .table-grid { grid-template-columns: 1fr !important; }
 }
 
@@ -665,4 +665,23 @@ body .container { display:block; margin-top: 1.2rem; }
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.85rem;
+}
+/* Style for the clickable cards/options in your modal */
+.option-card {
+    border: 1px solid #ddd;
+    padding: 10px;
+    margin: 5px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    /* ensure hidden checkbox is actually hidden but accessible */
+}
+
+/* The "Green Border" Effect */
+.option-card.selected {
+    border: 2px solid #28a745 !important; /* Green border */
+    background-color: #e6fffa;             /* Light green background */
+    color: #155724;                        /* Darker green text */
+    font-weight: bold;
 }
