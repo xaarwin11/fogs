@@ -56,13 +56,23 @@ CREATE TABLE `product_variations` (
   CONSTRAINT `fk_variation_product` FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- THE FIX: product_id is now NULLABLE to allow "Global Modifiers"
 CREATE TABLE `product_modifiers` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `product_id` INT UNSIGNED NOT NULL,
+  `product_id` INT UNSIGNED DEFAULT NULL,
   `name` VARCHAR(100) NOT NULL,
   `price` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_modifier_product` FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- THE BRIDGE: Links Modifiers to entire Categories
+CREATE TABLE `category_modifiers` (
+  `category_id` INT UNSIGNED NOT NULL,
+  `modifier_id` INT UNSIGNED NOT NULL,
+  PRIMARY KEY (`category_id`, `modifier_id`),
+  CONSTRAINT `fk_category_link` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_modifier_link` FOREIGN KEY (`modifier_id`) REFERENCES `product_modifiers` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- 3. Dining Tables
