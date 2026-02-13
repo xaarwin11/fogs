@@ -29,6 +29,7 @@ CREATE TABLE `credentials` (
 CREATE TABLE `categories` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `name` VARCHAR(100) NOT NULL UNIQUE,
+  `cat_type` ENUM('food', 'drink', 'other') DEFAULT 'food';
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB;
