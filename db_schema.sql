@@ -92,6 +92,7 @@ CREATE TABLE `orders` (
   `status` VARCHAR(32) NOT NULL DEFAULT 'open',
   `subtotal` DECIMAL(10,2) DEFAULT 0.00,       
   `discount_total` DECIMAL(10,2) DEFAULT 0.00, 
+  `discount_note` VARCHAR(50) DEFAULT NULL,
   `grand_total` DECIMAL(10,2) DEFAULT 0.00,    
   `reference` VARCHAR(64) DEFAULT NULL,
   `hidden_in_kds` TINYINT(1) NOT NULL DEFAULT 0,
@@ -178,6 +179,29 @@ CREATE TABLE `system_settings` (
   `setting_value` TEXT,
   `category` ENUM('business', 'pos', 'financial', 'hardware') NOT NULL
 ) ENGINE=InnoDB;
+
+CREATE TABLE `category_variations` (
+  `category_id` INT UNSIGNED NOT NULL,
+  `variation_name` VARCHAR(100) NOT NULL,
+  `price` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  PRIMARY KEY (`category_id`, `variation_name`),
+  CONSTRAINT `fk_cat_var_link` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE `discounts` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(100) NOT NULL,           -- e.g. "Senior Citizen", "Employee Meal"
+  `type` ENUM('percent', 'fixed') NOT NULL DEFAULT 'percent',
+  `value` DECIMAL(10,2) NOT NULL DEFAULT 0.00, -- e.g. 20.00
+  `target_type` ENUM('all', 'highest', 'food', 'drink', 'custom') NOT NULL DEFAULT 'all',
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
+
+INSERT INTO `discounts` (`name`, `type`, `value`, `target_type`) VALUES 
+('Senior/PWD', 'percent', 20.00, 'highest'), 
+('Employee Meal', 'percent', 50.00, 'food'),
+('Promo (Fixed)', 'fixed', 100.00, 'all');
 
 -- --- SEED DATA ---
 INSERT INTO `roles` (`role_name`) VALUES ('Admin'), ('Manager'), ('Staff');

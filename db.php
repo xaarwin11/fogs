@@ -1,6 +1,9 @@
 <?php
 date_default_timezone_set('Asia/Manila');
 
+
+$base_url = "/fogs-1";
+
 $dbHost = 'localhost';
 $dbName = 'fogs';
 $dbUser = 'root';

@@ -1,7 +1,9 @@
 <?php
-$base_url = "/fogs-1";
+require_once __DIR__ . '/../../db.php';?>
+<script src="<?php echo $base_url; ?>/assets/autolock.js"></script>
+<?php
 session_start();
-require_once __DIR__ . '/../../db.php';
+
 
 if (empty($_SESSION['user_id'])) {
     header("Location: $base_url/index.php");

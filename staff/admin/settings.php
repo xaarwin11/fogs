@@ -1,6 +1,8 @@
+
 <?php
-$base_url = "/fogs-1";
-require_once __DIR__ . '/../../db.php';
+require_once __DIR__ . '/../../db.php';?>
+<script src="<?php echo $base_url; ?>/assets/autolock.js"></script>
+<?php
 session_start();
 
 if (strtolower($_SESSION['role'] ?? '') !== 'admin') {
@@ -98,6 +100,7 @@ $cat_res = $mysqli->query("SELECT * FROM categories ORDER BY name ASC");
         <div class="nav-item" onclick="showTab(event, 'hardware')">🖨️ Hardware & Routing</div>
         <div class="nav-item" onclick="showTab(event, 'tables')">🪑 Table Layout</div>
         <div class="nav-item" onclick="showTab(event, 'categories')">📂 Menu Categories</div>
+        <div class="nav-item" onclick="showTab(event, 'master-library')">📋 Master Add-ons</div>
         <div class="nav-item" onclick="showTab(event, 'staff')">👥 Staff & Payroll</div>
         <div class="nav-item" onclick="showTab(event, 'system')">⚙️ System & Backup</div>
     </div>
@@ -225,10 +228,54 @@ $cat_res = $mysqli->query("SELECT * FROM categories ORDER BY name ASC");
                 <table class="nice-table">
                     <thead><tr><th>Category Name</th><th width="50">Action</th></tr></thead>
                     <tbody>
-                        <?php while($c = $cat_res->fetch_assoc()): ?>
+                        <?php 
+                        // Re-fetch categories to ensure we have the latest
+                        $cat_res = $mysqli->query("SELECT * FROM categories ORDER BY name ASC");
+                        while($c = $cat_res->fetch_assoc()): 
+                        ?>
                         <tr>
-                            <td><?php echo htmlspecialchars($c['name']); ?></td>
-                            <td><a href="process_settings.php?action=delete&target=category&id=<?php echo $c['id']; ?>" class="del-btn" style="position:static;">&times;</a></td>
+                            <td><strong><?php echo htmlspecialchars($c['name']); ?></strong></td>
+                            <td style="text-align:right; white-space:nowrap;">
+                                <button class="btn small" onclick="openManageCatModal(<?php echo $c['id']; ?>, '<?php echo addslashes($c['name']); ?>')">
+                                    ⚙️ Manage Global Options
+                                </button>
+                                <a href="process_settings.php?action=delete&target=category&id=<?php echo $c['id']; ?>" 
+                                class="del-btn" style="position:static; margin-left:15px;" 
+                                onclick="return confirm('Deleting this category will affect all linked products. Continue?')">&times;</a>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="master-library" class="tab-pane">
+            <div class="card">
+                <h3>➕ Master Add-ons (Global Modifiers)</h3>
+                <p style="font-size:0.8rem; color:#888;">Create add-ons here once. You can then link them to any Category.</p>
+                
+                <form action="process_settings.php" method="POST" style="margin-bottom:15px; display:flex; gap:5px;">
+                    <input type="hidden" name="action" value="add_master_modifier">
+                    <input type="text" name="name" class="staff-input" placeholder="e.g. Extra Pearls" required style="flex:2">
+                    <input type="number" name="price" class="staff-input" placeholder="₱" step="0.01" required style="flex:1">
+                    <button type="submit" class="btn small">Create Add-on</button>
+                </form>
+
+                <table class="nice-table" style="font-size:0.9rem;">
+                    <thead><tr><th>Name</th><th>Standard Price</th><th width="50"></th></tr></thead>
+                    <tbody>
+                        <?php 
+                        // FETCHING FROM YOUR product_modifiers WHERE product_id IS NULL
+                        $m_res = $mysqli->query("SELECT * FROM product_modifiers WHERE product_id IS NULL ORDER BY name ASC");
+                        while($m = $m_res->fetch_assoc()): ?>
+                        <tr>
+                            <td><strong><?php echo htmlspecialchars($m['name']); ?></strong></td>
+                            <td>₱<?php echo number_format($m['price'], 2); ?></td>
+                            <td>
+                                <a href="process_settings.php?action=delete&target=master_mod&id=<?php echo $m['id']; ?>" 
+                                class="del-btn" style="position:static;" onclick="return confirm('Delete this global add-on?')">&times;</a>
+                            </td>
                         </tr>
                         <?php endwhile; ?>
                     </tbody>
@@ -394,6 +441,40 @@ $cat_res = $mysqli->query("SELECT * FROM categories ORDER BY name ASC");
     </form>
 </dialog>
 
+<dialog id="manageCatModal" style="width: 500px;">
+    <h3 id="manageCatTitle">Manage Category</h3>
+    
+    <div style="margin-bottom: 20px;">
+        <h4 style="color:#5D4037; border-bottom:1px solid #eee; padding-bottom:5px;">📏 Global Variations (Sizes)</h4>
+        <div id="catVarList" style="max-height: 150px; overflow-y:auto; margin-bottom:10px; font-size:0.9rem;">
+            </div>
+        <form onsubmit="addCategoryGlobal(event, 'variation')">
+            <div style="display:flex; gap:5px;">
+                <input type="text" id="newVarName" placeholder="Size (e.g. Large)" class="staff-input" style="flex:2" required>
+                <input type="number" id="newVarPrice" placeholder="+₱" class="staff-input" style="flex:1" step="0.01" required>
+                <button type="submit" class="btn small">Add</button>
+            </div>
+        </form>
+    </div>
+
+    <div>
+        <h4 style="color:#5D4037; border-bottom:1px solid #eee; padding-bottom:5px;">➕ Global Modifiers (Add-ons)</h4>
+        <div id="catModList" style="max-height: 150px; overflow-y:auto; margin-bottom:10px; font-size:0.9rem;">
+            </div>
+        <div style="display:flex; gap:5px;">
+             <select id="modSelector" class="staff-input" style="flex:3">
+                 <option value="">-- Choose Existing Modifier --</option>
+                 </select>
+             <button onclick="addCategoryGlobal(null, 'modifier')" class="btn small">Link</button>
+        </div>
+        <p style="font-size:0.75rem; color:#888; margin-top:5px;">* Modifiers must be created in the Menu/Product settings first to appear here.</p>
+    </div>
+
+    <div class="modal-actions" style="margin-top:20px;">
+        <button type="button" class="btn secondary btn-full" onclick="document.getElementById('manageCatModal').close()">Done</button>
+    </div>
+</dialog>
+
 <dialog id="catModal">
     <h3>Add Category</h3>
     <form action="process_settings.php" method="POST">
@@ -474,6 +555,97 @@ function editStaff(data) {
     pinInput.placeholder = "Leave blank to keep current";
     
     staffModal.showModal();
+}
+
+let currentManagingCatId = null;
+
+async function openManageCatModal(catId, catName) {
+    currentManagingCatId = catId;
+    document.getElementById('manageCatTitle').innerText = "Global Options: " + catName;
+    
+    // 1. Clear previous lists
+    document.getElementById('catVarList').innerHTML = "Loading...";
+    document.getElementById('catModList').innerHTML = "Loading...";
+    
+    // 2. Fetch current globals for this category
+    // You'll need to create a small helper: fetch_category_globals.php
+    const resp = await fetch(`fetch_category_globals.php?category_id=${catId}`);
+    const data = await resp.json();
+    
+    renderGlobals(data);
+    document.getElementById('manageCatModal').showModal();
+}
+
+function renderGlobals(data) {
+    // Render Variations
+    let varHtml = data.variations.length ? '' : '<p style="color:#aaa">No global sizes set.</p>';
+    data.variations.forEach(v => {
+        varHtml += `<div style="display:flex; justify-content:space-between; padding:5px; border-bottom:1px solid #f9f9f9;">
+            <span>${v.variation_name} (+₱${parseFloat(v.price).toFixed(2)})</span>
+            <button onclick="deleteGlobal('variation', '${v.variation_name}')" style="color:red; border:none; background:none; cursor:pointer;">&times;</button>
+        </div>`;
+    });
+    document.getElementById('catVarList').innerHTML = varHtml;
+
+    // Render Modifiers
+    let modHtml = data.modifiers.length ? '' : '<p style="color:#aaa">No global add-ons set.</p>';
+    data.modifiers.forEach(m => {
+        modHtml += `<div style="display:flex; justify-content:space-between; padding:5px; border-bottom:1px solid #f9f9f9;">
+            <span>${m.name} (+₱${parseFloat(m.price).toFixed(2)})</span>
+            <button onclick="deleteGlobal('modifier', ${m.id})" style="color:red; border:none; background:none; cursor:pointer;">&times;</button>
+        </div>`;
+    });
+    document.getElementById('catModList').innerHTML = modHtml;
+    
+    // Populate the dropdown selector for modifiers
+    let selectorHtml = '<option value="">-- Choose Existing Modifier --</option>';
+    data.all_available_modifiers.forEach(am => {
+        selectorHtml += `<option value="${am.id}">${am.name} (₱${am.price})</option>`;
+    });
+    document.getElementById('modSelector').innerHTML = selectorHtml;
+}
+
+async function addCategoryGlobal(e, type) {
+    if(e) e.preventDefault();
+    
+    let payload = { category_id: currentManagingCatId, type: type };
+    
+    if(type === 'variation') {
+        payload.name = document.getElementById('newVarName').value;
+        payload.price = document.getElementById('newVarPrice').value;
+    } else {
+        payload.modifier_id = document.getElementById('modSelector').value;
+        if(!payload.modifier_id) return;
+    }
+
+    const resp = await fetch('process_category_globals.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    
+    const result = await resp.json();
+    if(result.success) {
+        // Refresh the list
+        openManageCatModal(currentManagingCatId, ""); 
+        if(type === 'variation') {
+            document.getElementById('newVarName').value = '';
+            document.getElementById('newVarPrice').value = '';
+        }
+    } else {
+        alert(result.error);
+    }
+}
+
+async function deleteGlobal(type, idOrName) {
+    if(!confirm("Remove this global option?")) return;
+    
+    await fetch('process_category_globals.php?action=delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category_id: currentManagingCatId, type: type, target: idOrName })
+    });
+    openManageCatModal(currentManagingCatId, "");
 }
 </script>
 

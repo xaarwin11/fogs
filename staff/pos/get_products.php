@@ -20,9 +20,9 @@ try {
     $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
     $mysqli = get_db_conn();
 
+    // 1. Fetching a Single Product (e.g., for Edit Modal)
     if ($id) {
-        // Updated: Added p.has_variation
-        $sql = "SELECT p.id, p.name, p.price, p.available, p.kds, p.has_variation, c.name AS category_name, p.category_id 
+        $sql = "SELECT p.*, c.name AS category_name 
                 FROM products p 
                 LEFT JOIN categories c ON p.category_id = c.id 
                 WHERE p.id = ? LIMIT 1";
@@ -34,11 +34,17 @@ try {
         $stmt->close();
 
         if ($p) {
-            $p['price'] = (float)$p['price'];
-            $p['available'] = (bool)$p['available'];
-            $p['kds'] = (bool)$p['kds'];
-            $p['has_variation'] = (int)$p['has_variation']; // Signal for JS
-            $p['category'] = $p['category_name'] ?? 'Uncategorized'; 
+            // Check if this product inherits variations OR has its own
+            $varCheck = $mysqli->query("SELECT 
+                ((SELECT COUNT(*) FROM product_variations WHERE product_id = {$id}) + 
+                 (SELECT COUNT(*) FROM category_variations WHERE category_id = {$p['category_id']})) as total");
+            $p['has_variation'] = ($varCheck->fetch_assoc()['total'] > 0) ? 1 : 0;
+            
+            // Check if this product inherits modifiers OR has its own
+            $modCheck = $mysqli->query("SELECT 
+                ((SELECT COUNT(*) FROM product_modifiers WHERE product_id = {$id}) + 
+                 (SELECT COUNT(*) FROM category_modifiers WHERE category_id = {$p['category_id']})) as total");
+            $p['has_modifiers'] = ($modCheck->fetch_assoc()['total'] > 0) ? 1 : 0;
         }
 
         $mysqli->close();
@@ -46,8 +52,8 @@ try {
         exit;
     }
 
-    // Updated: Added p.has_variation to the grouped fetch
-    $sql = "SELECT p.id, p.name, p.price, p.available, p.kds, p.has_variation, c.name AS category_name 
+    // 2. Fetching All Products (Grouped by Category for POS)
+    $sql = "SELECT p.id, p.name, p.price, p.category_id, c.name AS category_name 
             FROM products p 
             LEFT JOIN categories c ON p.category_id = c.id 
             WHERE p.available = 1 
@@ -57,16 +63,30 @@ try {
     $categories = [];
 
     while ($row = $res->fetch_assoc()) {
-        $cat = $row['category_name'] ?? 'Uncategorized';
-        if (!isset($categories[$cat])) $categories[$cat] = [];
-        
-        $categories[$cat][] = [
-            'id' => (int)$row['id'],
+        $catName = $row['category_name'] ?? 'Uncategorized';
+        $pid = (int)$row['id'];
+        $cid = (int)$row['category_id'];
+
+        if (!isset($categories[$catName])) $categories[$catName] = [];
+
+        // Check for ANY variation (Product-specific OR Category-wide)
+        $vQuery = $mysqli->query("SELECT 
+            (SELECT COUNT(*) FROM product_variations WHERE product_id = $pid) + 
+            (SELECT COUNT(*) FROM category_variations WHERE category_id = $cid) as total");
+        $hasVar = ($vQuery->fetch_assoc()['total'] > 0) ? 1 : 0;
+
+        // Check for ANY modifier (Product-specific OR Category-wide)
+        $mQuery = $mysqli->query("SELECT 
+            (SELECT COUNT(*) FROM product_modifiers WHERE product_id = $pid) + 
+            (SELECT COUNT(*) FROM category_modifiers WHERE category_id = $cid) as total");
+        $hasMod = ($mQuery->fetch_assoc()['total'] > 0) ? 1 : 0;
+
+        $categories[$catName][] = [
+            'id' => $pid,
             'name' => $row['name'],
             'price' => (float)$row['price'],
-            'available' => (bool)$row['available'],
-            'kds' => (bool)$row['kds'],
-            'has_variation' => (int)$row['has_variation'] // Signal for JS
+            'has_variation' => $hasVar,
+            'has_modifiers' => $hasMod
         ];
     }
 
@@ -74,7 +94,6 @@ try {
     echo json_encode(['success'=>true, 'categories'=>$categories]);
 
 } catch(Exception $e) { 
-    error_log('get_product error: '.$e->getMessage()); 
-    echo json_encode(['success'=>false, 'error'=>'Server error']); 
+    echo json_encode(['success'=>false, 'error'=>$e->getMessage()]); 
 }
 ?>

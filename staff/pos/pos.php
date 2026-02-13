@@ -1,6 +1,12 @@
 <?php
-$base_url = "/fogs-1";
 require_once __DIR__ . '/../../db.php';
+?>
+<script>
+    window.FOGS_BASE_URL = "<?php echo $base_url; ?>";
+</script>
+<script src="<?php echo $base_url; ?>/assets/autolock.js"></script>
+
+<?php
 session_start();
 
 if (empty($_SESSION['user_id'])) {
@@ -14,8 +20,13 @@ if (!in_array($role, ['staff','admin','manager'])) {
 }
 
 $tables = [];
+$categoryTypes = []; // Array to store the REAL database types
+$discounts = [];
+
 try {
     $mysqli = get_db_conn();
+    
+    // 1. Fetch Tables
     $stmt = $mysqli->prepare('SELECT id, table_number, table_type FROM `tables` ORDER BY table_number ASC');
     if ($stmt) {
         $stmt->execute();
@@ -27,9 +38,31 @@ try {
                 'type' => $row['table_type']
             ];
         }
-        $res->free();
         $stmt->close();
     }
+
+    // 2. Fetch Active Discounts
+    $d_res = $mysqli->query("SELECT * FROM discounts WHERE is_active = 1");
+    if ($d_res) {
+        while($d = $d_res->fetch_assoc()) {
+            $discounts[] = $d;
+        }
+    }
+
+    // 3. FETCH CATEGORY DEFINITIONS (The Fix for Senior Logic)
+    // We check if the column exists first to prevent crashing if you haven't run the ALTER TABLE yet
+    $colCheck = $mysqli->query("SHOW COLUMNS FROM `categories` LIKE 'cat_type'");
+    $hasTypeCol = $colCheck && $colCheck->num_rows > 0;
+    
+    $c_sql = $hasTypeCol ? "SELECT name, cat_type FROM categories" : "SELECT name FROM categories";
+    $c_res = $mysqli->query($c_sql);
+    if ($c_res) {
+        while($c = $c_res->fetch_assoc()) {
+            // If column exists, use it. If not, fallback to 'food'.
+            $categoryTypes[$c['name']] = $hasTypeCol ? $c['cat_type'] : 'food';
+        }
+    }
+
     $mysqli->close();
 } catch (Exception $ex) {
     error_log('POS DB error: ' . $ex->getMessage());
@@ -84,6 +117,15 @@ try {
             cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-decoration-color: #999;
         }
         .item-name-clickable:hover { color: #1976d2; }
+        
+        /* Modal Buttons */
+        .modal-btn {
+            display: block; width: 100%; padding: 15px; margin-bottom: 10px;
+            border: none; border-radius: 8px; font-size: 1rem; font-weight: bold;
+            cursor: pointer; text-align: left; transition: transform 0.1s;
+            color: white;
+        }
+        .modal-btn:active { transform: scale(0.98); }
     </style>
 </head>
 <body>
@@ -133,6 +175,9 @@ try {
             <div class="cart-total">Total: <span id="cartTotal">₱0.00</span></div>
             
             <div class="cart-actions">
+                <button onclick="applySmartDiscount()" style="grid-column: span 2; background: #ff9800; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-bottom: 5px;">
+                    % Apply Global/Senior Discount
+                </button>
                 <button class="save-btn" id="saveBtn">Save Bill</button>
                 <button class="printBillBtn" id="printBillBtn">Print Bill</button>
                 <button class="checkout-btn" id="checkoutBtn">Checkout</button>
@@ -191,9 +236,14 @@ try {
     let currentOrderId = null;
     let currentBillAmount = 0; 
     let pendingItem = null; 
-    let editingUniqueKey = null; // Tracks which item is being edited
+    let editingUniqueKey = null; 
 
     // --- DOM Elements ---
+    
+    // Inject PHP data directly into JS so there is NO guessing
+    const dbDiscounts = <?php echo json_encode($discounts); ?>;
+    const dbCategoryTypes = <?php echo json_encode($categoryTypes); ?>;
+    
     const tableSelect = document.getElementById('tableSelect');
     const productsGrid = document.getElementById('productsGrid');
     const categoriesContainer = document.getElementById('categoriesContainer');
@@ -210,6 +260,29 @@ try {
 
     let allProducts = {};
     let currentCategory = null;
+
+    // --- Helper: Get Category Info + Type ---
+    function getCategoryInfo(prodId) {
+        // Find the product in the local list
+        for (let catName in allProducts) {
+            let product = allProducts[catName].find(p => p.id == prodId);
+            if (product) {
+                // 1. Check if the DB told us what type this category is
+                let dbType = dbCategoryTypes[catName] || 'food';
+                
+                // 2. Extra safety: Fallback keyword check if DB is missing data
+                if (!dbCategoryTypes[catName]) {
+                    let lowerCat = catName.toLowerCase();
+                    const drinkKeywords = ['drink', 'beverage', 'beer', 'alcohol', 'wine', 'liquor', 'coffee', 'tea', 'juice', 'smoothie', 'shake', 'cocktail'];
+                    if (drinkKeywords.some(k => lowerCat.includes(k))) {
+                        dbType = 'drink';
+                    }
+                }
+                return { name: catName, type: dbType };
+            }
+        }
+        return { name: 'Other', type: 'food' };
+    }
 
     // --- Printing ---
     function triggerPrinting(orderId, mode = 'all') {
@@ -240,14 +313,11 @@ try {
     window.prepareEditCartItem = function(uniqueKey) {
         const item = cart[uniqueKey];
         if (!item) return;
-
-        // Prevent editing served items if policy dictates, or just warn
         if(item.served > 0) {
             Swal.fire('Note', 'This item has already been served to the kitchen.', 'info');
         }
-
-        editingUniqueKey = uniqueKey; // Set Global Edit Flag
-        showVariationPicker(item.productId, item.name, item); // Pass item context
+        editingUniqueKey = uniqueKey; 
+        showVariationPicker(item.productId, item.name, item); 
     };
 
     // 2. Size/Variation Picker (Handles both New and Edit)
@@ -255,54 +325,45 @@ try {
         fetch(`get_variations.php?product_id=${productId}`)
             .then(r => r.json())
             .then(data => {
-                // If no sizes, check if we need to show modifier picker anyway (for base products with mods)
-                if (!data.success || !data.sizes || data.sizes.length === 0) {
-                    // It's a simple product, go straight to modifiers or add
-                    pendingItem = { pId: productId, pName: productName, sId: null, sName: null, sPrice: data.base_price || 0 };
-                    showModifierPicker(productId, productName, null, null, data.base_price || 0, editItem);
+                // If no sizes, check modifiers
+                if (!data.sizes || data.sizes.length === 0) {
+                    if (data.modifiers && data.modifiers.length > 0) {
+                        pendingItem = { pId: productId, pName: productName, sId: null, sName: null, sPrice: data.base_price || 0 };
+                        showModifierPicker(productId, productName, null, null, data.base_price || 0, editItem);
+                    } else {
+                        addToCart(productId, productName, data.base_price || 0);
+                    }
                     return;
                 }
 
-                // Build HTML for Sizes
                 let html = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top:10px;">';
                 data.sizes.forEach(s => {
-                    // Check if this size is the one currently selected (Green Border Logic)
                     const isSelected = editItem && editItem.variationId == s.id ? 'selected' : '';
-                    
                     html += `
-                        <div class="option-card size-card ${isSelected}" onclick="handleSizeClick(this, ${productId}, '${productName.replace(/'/g, "\\'")}', ${s.id}, '${s.name.replace(/'/g, "\\'")}', ${s.price})">
+                        <div class="option-card size-card ${isSelected}" onclick="handleSizeClick(this, ${productId}, '${productName.replace(/'/g, "\\'")}', '${s.id}', '${s.name.replace(/'/g, "\\'")}', ${s.price})">
                             <strong>${s.name}</strong><br>₱${parseFloat(s.price).toFixed(2)}
                             <input type="radio" name="size_opt" value="${s.id}" ${isSelected ? 'checked' : ''} style="display:none;">
                         </div>`;
                 });
                 html += '</div>';
 
-                // We need to attach the editItem to the next step, so we store it temporarily or pass it
-                // Since SweetAlert is async, we use the global pending or just relies on click
                 window.currentEditItemContext = editItem; 
 
                 Swal.fire({ 
                     title: editItem ? 'Edit Size' : 'Select Size', 
                     html: html, 
                     showConfirmButton: false, 
-                    showCancelButton: true,
-                    didOpen: () => {
-                        // Optional: Scroll to selected
-                    }
+                    showCancelButton: true
                 }).then((res) => {
                     if(res.dismiss) { editingUniqueKey = null; window.currentEditItemContext = null; }
                 });
             });
     }
 
-    // Helper for Size Click
     window.handleSizeClick = function(el, pId, pName, sId, sName, sPrice) {
-        // Visual Selection
         document.querySelectorAll('.size-card').forEach(c => c.classList.remove('selected'));
         el.classList.add('selected');
-
-        // Proceed to Modifiers
-        const editItem = window.currentEditItemContext; // Retrieve context
+        const editItem = window.currentEditItemContext; 
         showModifierPicker(pId, pName, sId, sName, sPrice, editItem);
     };
 
@@ -313,7 +374,6 @@ try {
         fetch(`get_variations.php?product_id=${pId}`)
             .then(r => r.json())
             .then(data => {
-                // If no modifiers, finish immediately
                 if (!data.modifiers || data.modifiers.length === 0) {
                     finishItemProcess([]); 
                     return;
@@ -321,15 +381,11 @@ try {
 
                 let html = '<div style="text-align: left; max-height: 250px; overflow-y: auto;">';
                 data.modifiers.forEach(m => {
-                    // Check if modifier is in existing item
                     let isChecked = '';
                     let isSelectedClass = '';
                     if (editItem && editItem.modifiers) {
                         const exists = editItem.modifiers.find(em => em.id == m.id);
-                        if (exists) {
-                            isChecked = 'checked';
-                            isSelectedClass = 'selected';
-                        }
+                        if (exists) { isChecked = 'checked'; isSelectedClass = 'selected'; }
                     }
 
                     html += `
@@ -361,75 +417,51 @@ try {
                     if (res.isConfirmed) {
                         finishItemProcess(res.value);
                     } else {
-                        editingUniqueKey = null; // Reset if cancelled
+                        editingUniqueKey = null; 
                     }
                 });
             });
     }
 
-    // Helper for visual toggle
-    // --- Updated Visual Toggle for Modifiers ---
     window.toggleModClass = function(el) {
         const cb = el.querySelector('input[type="checkbox"]');
-        
-        // 1. Toggle the checkbox state first
         cb.checked = !cb.checked; 
-        
-        // 2. Sync the Green Border to the checkbox state
-        if (cb.checked) {
-            el.classList.add('selected');
-        } else {
-            el.classList.remove('selected');
-        }
-        
-        // Small haptic/log check to ensure it's working
-        console.log("Modifier " + cb.dataset.name + " is now: " + (cb.checked ? "ACTIVE" : "INACTIVE"));
+        if (cb.checked) el.classList.add('selected'); else el.classList.remove('selected');
     };
 
-    // 4. Final Processing (Decides: Add New or Update Existing)
+    // 4. Final Processing
     function finishItemProcess(selectedMods) {
         const p = pendingItem;
         const extraPrice = selectedMods.reduce((sum, m) => sum + m.price, 0);
 
         if (editingUniqueKey) {
-            // --- UPDATE EXISTING ITEM ---
             const oldItem = cart[editingUniqueKey];
-            
-            // Construct new key just in case, or keep old key? 
-            // Better to keep logic consistent. If size changes, it's technically a "different" key in our structure,
-            // BUT we want to preserve the DB ID.
-            
-            // 1. Update the data
             oldItem.variationId = p.sId;
             oldItem.variationName = p.sName;
             oldItem.basePrice = parseFloat(p.sPrice);
             oldItem.modifiers = selectedMods;
             oldItem.modifierTotal = extraPrice;
-            
-            // 2. Visual feedback
             updateCart();
             updateTableStatus();
-            
-            editingUniqueKey = null; // Done editing
+            editingUniqueKey = null; 
             window.currentEditItemContext = null;
-
         } else {
-            // --- ADD NEW ITEM ---
             addToCart(p.pId, p.pName, p.sPrice, p.sId, p.sName, selectedMods, extraPrice);
         }
-        
         Swal.close();
     }
 
     // --- CORE CART LOGIC ---
 
     function addToCart(prodId, prodName, basePrice, varId = null, varName = null, modifiers = [], modTotal = 0, existingNotes = '', servedQty = 0, dbItemId = null) {
+        if (!modifiers) modifiers = [];
         const modIdString = modifiers.map(m => m.id).sort().join('-');
         const uniqueKey = `p${prodId}_v${varId || 0}_m${modIdString || 0}`;
 
         if (cart[uniqueKey]) {
             if(dbItemId === null) cart[uniqueKey].qty++;
         } else {
+            const catInfo = getCategoryInfo(prodId);
             cart[uniqueKey] = {
                 order_item_id: dbItemId,
                 productId: prodId,
@@ -438,6 +470,8 @@ try {
                 variationName: varName,
                 basePrice: parseFloat(basePrice),
                 modifierTotal: parseFloat(modTotal),
+                category: catInfo.name,      
+                categoryType: catInfo.type,  // THIS IS THE CRITICAL FIX
                 discountAmount: 0,
                 modifiers: modifiers,
                 qty: 1,
@@ -451,66 +485,216 @@ try {
 
     function updateCart() {
         cartItems.innerHTML = ''; 
-        let totalBill = 0;
+        let subtotal = 0;
+        let totalDiscount = 0;
 
         Object.entries(cart).forEach(([key, it]) => {
             const unitPrice = it.basePrice + it.modifierTotal;
-            const subtotal = unitPrice * it.qty;
-            const lineTotal = subtotal - it.discountAmount; 
-            totalBill += lineTotal;
+            const itemSubtotal = unitPrice * it.qty;
+            const lineDiscount = parseFloat(it.discountAmount || 0); 
+            const finalLineTotal = itemSubtotal - lineDiscount;
+            
+            subtotal += itemSubtotal;
+            totalDiscount += lineDiscount;
 
             let displayName = it.name;
             if(it.variationName) displayName += ` <span style="color:#666;">(${it.variationName})</span>`;
             
             let modString = '';
-            if(it.modifiers.length > 0) {
+            if(it.modifiers && it.modifiers.length > 0) {
                 modString = '<br><small style="color:#2e7d32;">+ ' + it.modifiers.map(m => m.name).join(', ') + '</small>';
+            }
+
+            // Visual Strikethrough Logic
+            let priceHTML = `₱${finalLineTotal.toFixed(2)}`;
+            if (lineDiscount > 0) {
+                priceHTML = `
+                    <div style="text-align:right;">
+                        <small style="text-decoration: line-through; color: #999;">₱${itemSubtotal.toFixed(2)}</small><br>
+                        <span style="color: #d32f2f; font-weight: bold; font-size: 0.8rem;">-₱${lineDiscount.toFixed(2)}</span><br>
+                        <b style="color: #2e7d32;">₱${finalLineTotal.toFixed(2)}</b>
+                    </div>
+                `;
             }
 
             const row = document.createElement('div');
             row.className = 'cart-item';
             row.innerHTML = `
-                <div class="item-name item-name-clickable" onclick="prepareEditCartItem('${key}')" title="Click to Edit">
+                <div class="item-name item-name-clickable" onclick="prepareEditCartItem('${key}')">
                     ${displayName}
                     ${modString}
-                    ${it.served > 0 ? `<br><small style="color:red;">Served: ${it.served}</small>` : ''}
                     ${it.notes ? `<br><small style="color:#888;">Note: ${it.notes}</small>` : ''}
+                    ${it.discountNote ? `<br><small style="color:#d32f2f; font-weight:bold;">[${it.discountNote}]</small>` : ''}
                 </div>
                 <div class="qty-control">
                     <button class="qty-btn" onclick="changeQty('${key}', -1)">−</button>
                     <input type="text" class="item-qty-input" value="${it.qty}" readonly>
                     <button class="qty-btn" onclick="changeQty('${key}', 1)">+</button>
                 </div>
-                <div class="item-price" onclick="applyItemDiscount('${key}')" title="Click to Discount">
-                    ₱${lineTotal.toFixed(2)}
-                    ${it.discountAmount > 0 ? `<span class="discount-tag">(-₱${it.discountAmount.toFixed(2)})</span>` : ''}
+                <div class="item-price" onclick="applyItemDiscount('${key}')" style="min-width: 80px;">
+                    ${priceHTML}
                 </div>
                 <button class="item-remove" onclick="removeFromCart('${key}')">×</button>
             `;
             cartItems.appendChild(row);
         });
 
-        cartTotal.textContent = '₱' + totalBill.toFixed(2);
+        const grandTotal = subtotal - totalDiscount;
+
+        cartTotal.innerHTML = `
+            <div style="font-size: 0.9rem; color: #666; text-align: right;">Subtotal: ₱${subtotal.toFixed(2)}</div>
+            ${totalDiscount > 0 ? `<div style="font-size: 0.9rem; color: #d32f2f; text-align: right; font-weight:bold;">Total Discount: -₱${totalDiscount.toFixed(2)}</div>` : ''}
+            <div style="font-size: 1.6rem; font-weight: bold; text-align: right; margin-top: 5px; color: #1b5e20;">Total: ₱${grandTotal.toFixed(2)}</div>
+        `;
+
         if (Object.keys(cart).length === 0) cartItems.innerHTML = '<div class="empty-cart">Select a table and add items</div>';
     }
 
-    // --- DISCOUNT, LOAD, SAVE (Existing Logic) ---
+    // --- DISCOUNT LOGIC (Fixed for Senior) ---
+
     window.applyItemDiscount = function(key) {
         const item = cart[key];
+        const itemSubtotal = (item.basePrice + item.modifierTotal) * item.qty;
+
         Swal.fire({
             title: 'Apply Discount',
-            text: `Total: ₱${((item.basePrice + item.modifierTotal) * item.qty).toFixed(2)}`,
-            input: 'number',
-            inputValue: item.discountAmount,
-            showCancelButton: true
+            html: `
+                <div style="text-align: left; font-size: 0.9rem; color: #666; margin-bottom: 10px;">
+                    Item Subtotal: <strong>₱${itemSubtotal.toFixed(2)}</strong>
+                </div>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <select id="discType" class="swal2-input" style="margin:0; flex: 1;">
+                        <option value="percent" ${item.discountType === 'percent' ? 'selected' : ''}>% Percentage</option>
+                        <option value="fixed" ${item.discountType === 'fixed' ? 'selected' : ''}>₱ Fixed Amount</option>
+                    </select>
+                    <input type="number" id="discValue" class="swal2-input" style="margin:0; flex: 1;" placeholder="Value" value="${item.discountValue || 0}">
+                </div>
+                <input type="text" id="discNote" class="swal2-input" style="margin:0; width: 90%;" placeholder="Reason (e.g. Senior Citizen, PWD)" value="${item.discountNote || ''}">
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Apply',
+            preConfirm: () => {
+                const type = document.getElementById('discType').value;
+                const val = parseFloat(document.getElementById('discValue').value) || 0;
+                const note = document.getElementById('discNote').value;
+                let finalDiscount = (type === 'percent') ? itemSubtotal * (val / 100) : val;
+                if (finalDiscount > itemSubtotal) finalDiscount = itemSubtotal;
+                return { finalDiscount, type, val, note };
+            }
         }).then((result) => {
             if (result.isConfirmed) {
-                let val = parseFloat(result.value);
-                if(isNaN(val) || val < 0) val = 0;
-                cart[key].discountAmount = val;
+                const { finalDiscount, type, val, note } = result.value;
+                cart[key].discountAmount = finalDiscount;
+                cart[key].discountType = type;     
+                cart[key].discountValue = val;     
+                cart[key].discountNote = note;     
                 updateCart();
             }
         });
+    };
+
+    window.applySmartDiscount = function() {
+        const keys = Object.keys(cart);
+        if (keys.length === 0) return Swal.fire('Error', 'Cart is empty', 'error');
+
+        Swal.fire({
+            title: 'Select Discount Type',
+            html: `
+                <div style="display: grid; grid-template-columns: 1fr; gap: 10px;">
+                    <button onclick="executeSeniorDiscount()" class="modal-btn" style="background:#ff9800;">👴 Senior Citizen / PWD (20%)</button>
+                    <button onclick="showCustomDiscountWizard()" class="modal-btn" style="background:#2196f3;">🎨 Custom Promo / Global %</button>
+                    <button onclick="clearAllDiscounts()" class="modal-btn" style="background:#f44336;">❌ Clear All Discounts</button>
+                </div>
+            `,
+            showConfirmButton: false,
+            showCancelButton: true,
+            cancelButtonText: 'Close'
+        });
+    };
+
+    window.executeSeniorDiscount = function() {
+        const keys = Object.keys(cart);
+        let foodKey = null; let maxFoodPrice = 0;
+        let drinkKey = null; let maxDrinkPrice = 0;
+
+        // Reset
+        keys.forEach(k => { cart[k].discountAmount = 0; cart[k].discountNote = ''; });
+
+        keys.forEach(k => {
+            const it = cart[k];
+            // Calculate price of ONE unit (Senior Discount is usually per person/serving)
+            const unitPrice = it.basePrice + it.modifierTotal;
+            
+            // USE THE REAL TYPE (fetched from DB in PHP above)
+            if (it.categoryType === 'drink') {
+                if (unitPrice > maxDrinkPrice) { maxDrinkPrice = unitPrice; drinkKey = k; }
+            } else {
+                if (unitPrice > maxFoodPrice) { maxFoodPrice = unitPrice; foodKey = k; }
+            }
+        });
+
+        // Apply 20% to one Food and one Drink
+        if (foodKey) {
+            cart[foodKey].discountAmount = (cart[foodKey].basePrice + cart[foodKey].modifierTotal) * 0.20;
+            cart[foodKey].discountNote = "Senior (Food)";
+        }
+        if (drinkKey) {
+            cart[drinkKey].discountAmount = (cart[drinkKey].basePrice + cart[drinkKey].modifierTotal) * 0.20;
+            cart[drinkKey].discountNote = "Senior (Drink)";
+        }
+
+        updateCart();
+        Swal.close(); 
+        Swal.fire('Applied', '20% applied to 1 Food and 1 Drink item.', 'success');
+    };
+
+    window.showCustomDiscountWizard = function() {
+        const allCats = Object.keys(allProducts);
+        const catCheckboxes = allCats.map(cat => 
+            `<label style="display:block; text-align:left; margin:5px 0;">
+                <input type="checkbox" class="cat-check" value="${cat}" checked> ${cat}
+            </label>`
+        ).join('');
+
+        Swal.fire({
+            title: 'Custom Discount',
+            html: `
+                <input type="number" id="custVal" class="swal2-input" placeholder="Value (e.g. 10)">
+                <select id="custType" class="swal2-input"><option value="percent">% Percent</option><option value="fixed">₱ Fixed Amount</option></select>
+                <input type="text" id="custNote" class="swal2-input" placeholder="Reason (e.g. Promo)">
+                <div style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin-top: 10px; max-height: 150px; overflow-y: auto;">
+                    <div style="font-weight:bold; margin-bottom:5px;">Apply to:</div>
+                    ${catCheckboxes}
+                </div>
+            `,
+            showCancelButton: true,
+            preConfirm: () => {
+                const val = parseFloat(document.getElementById('custVal').value);
+                const type = document.getElementById('custType').value;
+                const note = document.getElementById('custNote').value;
+                const selectedCats = Array.from(document.querySelectorAll('.cat-check:checked')).map(c => c.value);
+                
+                if(!val) return Swal.showValidationMessage('Enter a value');
+                
+                Object.keys(cart).forEach(k => {
+                    if (selectedCats.includes(cart[k].category)) {
+                        const total = (cart[k].basePrice + cart[k].modifierTotal) * cart[k].qty;
+                        cart[k].discountAmount = type === 'percent' ? (total * (val / 100)) : val;
+                        cart[k].discountNote = note || 'Custom';
+                    }
+                });
+                updateCart();
+            }
+        });
+    };
+
+    window.clearAllDiscounts = function() {
+        Object.keys(cart).forEach(k => {
+            cart[k].discountAmount = 0;
+            cart[k].discountNote = '';
+        });
+        updateCart();
+        Swal.close();
     };
 
     function loadCart() {
@@ -523,11 +707,10 @@ try {
                     currentOrderId = data.order_id;
                     (data.items || []).forEach(item => {
                         const mods = item.modifiers || [];
-                        // We use a simplified key generation for loaded items to avoid conflicts
-                        // Or we can rely on order_item_id mainly
                         const modString = mods.map(m => m.id).sort().join('-');
                         const uKey = `p${item.product_id}_v${item.size_id || 0}_m${modString || 0}_db${item.order_item_id}`; 
-                        
+                        const catInfo = getCategoryInfo(item.product_id); // Gets the CORRECT type now
+
                         cart[uKey] = {
                             order_item_id: item.order_item_id,
                             productId: item.product_id, 
@@ -537,11 +720,14 @@ try {
                             basePrice: parseFloat(item.base_price || item.price),
                             modifierTotal: parseFloat(item.modifier_total || 0),
                             discountAmount: parseFloat(item.discount_amount || 0),
+                            discountNote: item.discount_note || '', 
                             modifiers: mods,
                             qty: parseInt(item.quantity), 
                             notes: item.notes || '',
                             served: parseInt(item.served || 0),
-                            unique_key: uKey // Explicitly store key
+                            category: catInfo.name,     
+                            categoryType: catInfo.type, 
+                            unique_key: uKey 
                         };
                     });
                 } else { currentOrderId = null; }
@@ -563,6 +749,7 @@ try {
                 base_price: it.basePrice,
                 modifier_total: it.modifierTotal,
                 discount_amount: it.discountAmount,
+                discount_note: it.discountNote || '', 
                 modifiers: it.modifiers,
                 notes: it.notes
             });
@@ -630,11 +817,13 @@ try {
         (allProducts[category] || []).forEach(p => {
             const card = document.createElement('div');
             card.className = 'product-card';
-            card.innerHTML = `<div class="product-name">${p.name}</div><div class="product-price">${parseInt(p.has_variation) === 1 ? 'Starts at ' : ''}₱${parseFloat(p.price).toFixed(2)}</div>`;
+            card.innerHTML = `<div class="product-name">${p.name}</div>
+                            <div class="product-price">${parseInt(p.has_variation) === 1 ? 'Starts at ' : ''}₱${parseFloat(p.price).toFixed(2)}</div>`;
+            
             card.onclick = () => {
-                if (!selectedTableId) return;
-                editingUniqueKey = null; // Clear edit flag for new adds
-                if (parseInt(p.has_variation) === 1) {
+                editingUniqueKey = null; 
+                const needsPicker = parseInt(p.has_variation) === 1 || parseInt(p.has_modifiers) === 1;
+                if (needsPicker) {
                     showVariationPicker(p.id, p.name);
                 } else {
                     addToCart(p.id, p.name, p.price, null, null, [], 0);
@@ -730,7 +919,7 @@ try {
                 card.className = 'product-card';
                 card.innerHTML = `<div class="product-name">${p.name}</div><div class="product-price">₱${p.price}</div>`;
                 card.onclick = () => {
-                    editingUniqueKey = null; // New item add
+                    editingUniqueKey = null; 
                     if (parseInt(p.has_variation) === 1) showVariationPicker(p.id, p.name);
                     else addToCart(p.id, p.name, p.price, null, null, [], 0);
                 };
@@ -770,20 +959,19 @@ try {
             Swal.fire('Success', 'Payment Complete', 'success');
             document.getElementById('paymentPopup').style.display = 'none';
             selectedTableId = null; cart = {}; currentOrderId = null;
-            tableSelect.value = ""; toggleProductLock(); filterTables(); updateCart();
+            tableSelect.value = "0"; toggleProductLock(); filterTables(); updateCart();
         })
         .catch(err => Swal.fire('Error', err.message, 'error'));
     };
 
-    // --- NEW: Reset Table on Order Type Change ---
     document.querySelectorAll('input[name="orderType"]').forEach(radio => {
         radio.addEventListener('change', function() {
             if (tableSelect) {
-                tableSelect.value = "0"; // Reset table selection
-                selectedTableId = null;  // Reset internal state
-                cart = {};               // Clear cart visually (optional, safer to clear)
+                tableSelect.value = "0"; 
+                selectedTableId = null; 
+                cart = {};               
                 updateCart();
-                toggleProductLock();     // Re-lock products
+                toggleProductLock();     
             }
             filterTables();
         });
@@ -799,7 +987,6 @@ try {
         });
     }
 
-    // Init
     loadProducts();
     toggleProductLock();
     filterTables();

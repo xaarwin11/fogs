@@ -13,27 +13,24 @@ if (!in_array($role, ['staff','admin','manager'])) {
 try {
     $mysqli = get_db_conn();
     
-    // Check if KDS column exists
+    // 1. Check if KDS column exists
     $hasKds = false;
     $colRes = $mysqli->query("SHOW COLUMNS FROM `products` LIKE 'kds'");
     if ($colRes && $colRes->num_rows > 0) $hasKds = true;
-
-    // Use a LEFT JOIN to get the category name from the categories table
-    // If you haven't moved to the category table yet, this SQL will fall back gracefully
     $kdsField = $hasKds ? "p.kds" : "0 AS kds";
-    
-    // Check if category table exists to decide join logic
+
+    // 2. Check if category table exists to decide join logic
     $tableCheck = $mysqli->query("SHOW TABLES LIKE 'categories'");
     
     if ($tableCheck->num_rows > 0) {
         // NEW LOGIC: Joins products with categories table
-        $sql = "SELECT p.id, p.name, c.name as category_name, p.price, p.available, $kdsField 
+        $sql = "SELECT p.id, p.name, c.name as category_name, p.price, p.available, p.has_variation, $kdsField 
                 FROM products p
                 LEFT JOIN categories c ON p.category_id = c.id
                 ORDER BY c.name ASC, p.name ASC";
     } else {
         // OLD LOGIC: Just uses the text column in products
-        $sql = "SELECT id, name, category as category_name, price, available, $kdsField 
+        $sql = "SELECT id, name, category as category_name, price, available, has_variation, $kdsField 
                 FROM products 
                 ORDER BY category ASC, name ASC";
     }
@@ -42,23 +39,23 @@ try {
     if (!$res) throw new Exception('Query failed: ' . $mysqli->error);
 
     $products = [];
+    // Line 44 was here - now $res is guaranteed to be defined above
     while ($row = $res->fetch_assoc()) {
         $products[] = [
-            'id'        => (int)$row['id'],
-            'name'      => $row['name'],
-            'category'  => $row['category_name'] ?? 'Uncategorized', // Use the joined name
-            'price'     => (float)$row['price'],
-            'available' => isset($row['available']) ? (bool)$row['available'] : true,
-            'kds'       => (bool)$row['kds']
+            'id'            => (int)$row['id'],
+            'name'          => $row['name'],
+            'category'      => $row['category_name'] ?? 'Uncategorized',
+            'price'         => (float)$row['price'],
+            'available'     => isset($row['available']) ? (bool)$row['available'] : true,
+            'has_variation' => (int)($row['has_variation'] ?? 0),
+            'kds'           => (bool)$row['kds']
         ];
     }
     
     $mysqli->close();
     echo json_encode(['success' => true, 'products' => $products]);
 
-} catch (Exception $ex) {
-    error_log('get_products_admin error: ' . $ex->getMessage());
-    http_response_code(500);
-    echo json_encode(['success' => false, 'error' => $ex->getMessage()]);
+} catch (Exception $e) {
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }
 ?>

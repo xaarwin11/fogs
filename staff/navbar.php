@@ -33,7 +33,6 @@ $baseUrl = substr($scriptDir, 0, strpos($scriptDir, '/staff'));
                 <a href="<?php echo $baseUrl; ?>/logout.php" class="logout-mobile">Logout</a> </div>
             <?php endif; ?>
             <?php if ($role === 'manager' || $role === 'admin'): ?>
-                <a href="<?php echo $baseUrl; ?>/staff/admin/staff.php">Staff</a>
                 <a href="<?php echo $baseUrl; ?>/staff/reports/reports.php">Reports</a>
                 <a href="<?php echo $baseUrl; ?>/staff/admin/settings.php">Settings</a>
             <?php endif; ?>
