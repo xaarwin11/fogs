@@ -34,6 +34,9 @@ $staff_query = "SELECT c.id, c.username, c.first_name, c.last_name, c.role_id, r
                 ORDER BY c.last_name ASC";
 $staff_res = $mysqli->query($staff_query);
 
+// --- 5. FETCH DISCOUNTS ---
+$discounts_res = $mysqli->query("SELECT * FROM discounts ORDER BY id DESC");
+
 // --- 5. FETCH ROLES (For Staff Modal) ---
 $roles_res = $mysqli->query("SELECT id, role_name FROM roles ORDER BY id ASC");
 $roles = $roles_res->fetch_all(MYSQLI_ASSOC);
@@ -45,6 +48,7 @@ $cat_res = $mysqli->query("SELECT * FROM categories ORDER BY name ASC");
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <meta charset="UTF-8">
     <title>Command Center | FOGS</title>
     <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/style.css">
@@ -101,6 +105,7 @@ $cat_res = $mysqli->query("SELECT * FROM categories ORDER BY name ASC");
         <div class="nav-item" onclick="showTab(event, 'tables')">🪑 Table Layout</div>
         <div class="nav-item" onclick="showTab(event, 'categories')">📂 Menu Categories</div>
         <div class="nav-item" onclick="showTab(event, 'master-library')">📋 Master Add-ons</div>
+        <div class="nav-item" onclick="showTab(event, 'discounts')">🏷️ Discounts & Promos</div>
         <div class="nav-item" onclick="showTab(event, 'staff')">👥 Staff & Payroll</div>
         <div class="nav-item" onclick="showTab(event, 'system')">⚙️ System & Backup</div>
     </div>
@@ -278,6 +283,54 @@ $cat_res = $mysqli->query("SELECT * FROM categories ORDER BY name ASC");
                             </td>
                         </tr>
                         <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="discounts" class="tab-pane" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3 style="margin:0;">Manage Discounts & Promos</h3>
+                <button onclick="openDiscountModal()" class="btn" style="width:auto; padding:10px 20px;">+ Add New Discount</button>
+            </div>
+
+            <div class="card" style="padding:0;">
+                <table class="nice-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Value</th>
+                            <th>Target</th>
+                            <th>Status</th>
+                            <th style="text-align:center;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php while($d = $discounts_res->fetch_assoc()): ?>
+                        <tr>
+                            <td><strong><?php echo htmlspecialchars($d['name']); ?></strong></td>
+                            <td>
+                                <span class="device-badge"><?php echo ucfirst($d['type']); ?></span>
+                            </td>
+                            <td>
+                                <strong><?php echo ($d['type'] == 'percent' ? $d['value'].'%' : '₱'.number_format($d['value'],2)); ?></strong>
+                            </td>
+                            <td><?php echo ucfirst($d['target_type']); ?></td>
+                            <td>
+                                <span style="color: <?php echo $d['is_active'] ? '#2e7d32' : '#d32f2f'; ?>; font-weight:bold;">
+                                    <?php echo $d['is_active'] ? '● Active' : '○ Inactive'; ?>
+                                </span>
+                            </td>
+                            <td style="text-align:center;">
+                                <button class="btn small" onclick='openDiscountModal(<?php echo htmlspecialchars(json_encode($d), ENT_QUOTES, "UTF-8"); ?>)'>Edit</button>
+                                <button class="del-btn" style="position:static; float:none; display:inline-block;" onclick="deleteDiscount(<?php echo $d['id']; ?>)">&times;</button>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                        <?php if($discounts_res->num_rows == 0): ?>
+                            <tr><td colspan="6" style="text-align:center; padding:20px; color:#999;">No discounts created yet.</td></tr>
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -481,6 +534,11 @@ $cat_res = $mysqli->query("SELECT * FROM categories ORDER BY name ASC");
         <input type="hidden" name="action" value="add_category">
         <label>Category Name</label>
         <input type="text" name="cat_name" class="staff-input" placeholder="e.g. Desserts" required>
+        <label>Category Type</label>
+        <select name="cat_type" class="staff-input">
+            <option value="food">Food (Kitchen Printer)</option>
+            <option value="drink">Drink (Bar Printer)</option>
+        </select>
         <div class="modal-actions">
             <button type="submit" class="btn">Save</button>
             <button type="button" class="btn secondary" onclick="document.getElementById('catModal').close()">Cancel</button>
@@ -497,15 +555,25 @@ window.onload = function() {
     if(target) target.click();
 };
 
-function showTab(evt, tabId) {
-    let panes = document.getElementsByClassName("tab-pane");
-    let navs = document.getElementsByClassName("nav-item");
-    for (let p of panes) p.style.display = "none";
-    for (let n of navs) n.classList.remove("active");
-    document.getElementById(tabId).style.display = "block";
+function showTab(evt, tabName) {
+    let i, tabcontent, tablinks;
+    // Hide all tab panes
+    tabcontent = document.getElementsByClassName("tab-pane");
+    for (i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+        tabcontent[i].classList.remove("active");
+    }
+    // Remove active class from all nav items
+    tablinks = document.getElementsByClassName("nav-item");
+    for (i = 0; i < tablinks.length; i++) {
+        tablinks[i].classList.remove("active");
+    }
+    // Show the current tab and add an "active" class to the button that opened it
+    const activeTab = document.getElementById(tabName);
+    activeTab.style.display = "block";
+    activeTab.classList.add("active");
     evt.currentTarget.classList.add("active");
 }
-
 // --- MODAL OPENERS ---
 function openPrinterModal() { document.getElementById('printerModal').showModal(); }
 function openTableModal() { document.getElementById('tableModal').showModal(); }
@@ -646,6 +714,108 @@ async function deleteGlobal(type, idOrName) {
         body: JSON.stringify({ category_id: currentManagingCatId, type: type, target: idOrName })
     });
     openManageCatModal(currentManagingCatId, "");
+}
+// --- DISCOUNT MANAGEMENT ---
+function openDiscountModal(data = null) {
+    const isEdit = !!data;
+    Swal.fire({
+        title: isEdit ? 'Edit Discount' : 'Add New Discount',
+        html: `
+            <input type="hidden" id="discId" value="${data?.id || ''}">
+            <div style="text-align:left; margin-bottom:10px;">
+                <label style="font-weight:bold; display:block; margin-bottom:5px;">Discount Name</label>
+                <input type="text" id="discName" class="swal2-input" placeholder="e.g. Senior Citizen" value="${data?.name || ''}" style="width:100%; margin:0;">
+            </div>
+            <div style="display:flex; gap:10px; margin-bottom:10px;">
+                <div style="flex:1; text-align:left;">
+                    <label style="font-weight:bold; display:block; margin-bottom:5px;">Type</label>
+                    <select id="discType" class="swal2-input" style="width:100%; margin:0;">
+                        <option value="percent" ${data?.type==='percent'?'selected':''}>Percentage (%)</option>
+                        <option value="fixed" ${data?.type==='fixed'?'selected':''}>Fixed Amount (₱)</option>
+                    </select>
+                </div>
+                <div style="flex:1; text-align:left;">
+                    <label style="font-weight:bold; display:block; margin-bottom:5px;">Value</label>
+                    <input type="number" id="discValue" class="swal2-input" style="width:100%; margin:0;" value="${data?.value || ''}">
+                </div>
+            </div>
+            <div style="text-align:left; margin-bottom:10px;">
+                <label style="font-weight:bold; display:block; margin-bottom:5px;">Target Behavior</label>
+                <select id="discTarget" class="swal2-input" style="width:100%; margin:0;">
+                    <option value="all" ${data?.target_type==='all'?'selected':''}>Apply to Entire Bill</option>
+                    <option value="highest" ${data?.target_type==='highest'?'selected':''}>Apply to Highest Priced Item</option>
+                    <option value="food" ${data?.target_type==='food'?'selected':''}>Apply to All Food Items</option>
+                    <option value="drink" ${data?.target_type==='drink'?'selected':''}>Apply to All Drinks</option>
+                </select>
+            </div>
+            <div style="text-align:left;">
+                <label style="cursor:pointer;"><input type="checkbox" id="discActive" ${(!isEdit || data?.is_active == 1) ? 'checked' : ''}> Active / Enabled</label>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Save Discount',
+        focusConfirm: false,
+        preConfirm: () => {
+            const name = document.getElementById('discName').value;
+            const value = document.getElementById('discValue').value;
+            if (!name || !value) {
+                Swal.showValidationMessage('Please fill out all fields');
+                return false;
+            }
+            return {
+                id: document.getElementById('discId').value,
+                name: name,
+                type: document.getElementById('discType').value,
+                value: value,
+                target_type: document.getElementById('discTarget').value,
+                is_active: document.getElementById('discActive').checked ? 1 : 0
+            }
+        }
+    }).then(result => {
+        if (result.isConfirmed) {
+            saveDiscount(result.value);
+        }
+    });
+}
+
+async function saveDiscount(payload) {
+    try {
+        const resp = await fetch('process_discounts.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const res = await resp.json();
+        if(res.success) {
+            Swal.fire({ icon: 'success', title: 'Saved!', showConfirmButton: false, timer: 1000 })
+                .then(() => location.reload());
+        } else {
+            Swal.fire('Error', res.error, 'error');
+        }
+    } catch (err) {
+        Swal.fire('Error', 'Could not connect to server', 'error');
+    }
+}
+
+async function deleteDiscount(id) {
+    const result = await Swal.fire({
+        title: 'Delete Discount?',
+        text: "This cannot be undone!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        confirmButtonText: 'Yes, remove it'
+    });
+
+    if (result.isConfirmed) {
+        const resp = await fetch('process_discounts.php?action=delete&id=' + id, { method: 'POST' });
+        const res = await resp.json();
+        if(res.success) {
+            location.reload();
+        } else {
+            Swal.fire('Error', res.error, 'error');
+        }
+    }
 }
 </script>
 

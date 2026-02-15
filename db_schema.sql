@@ -29,7 +29,7 @@ CREATE TABLE `credentials` (
 CREATE TABLE `categories` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `name` VARCHAR(100) NOT NULL UNIQUE,
-  `cat_type` ENUM('food', 'drink', 'other') DEFAULT 'food';
+  `cat_type` ENUM('food', 'drink', 'other') DEFAULT 'food',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB;
@@ -86,10 +86,21 @@ CREATE TABLE `tables` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB;
 
+CREATE TABLE `discounts` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(100) NOT NULL,           -- e.g. "Senior Citizen", "Employee Meal"
+  `type` ENUM('percent', 'fixed') NOT NULL DEFAULT 'percent',
+  `value` DECIMAL(10,2) NOT NULL DEFAULT 0.00, -- e.g. 20.00
+  `target_type` ENUM('all', 'highest', 'food', 'drink', 'custom') NOT NULL DEFAULT 'all',
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
+
 -- 4. Orders & Items
 CREATE TABLE `orders` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `table_id` INT UNSIGNED DEFAULT NULL,
+  `discount_id` INT UNSIGNED DEFAULT NULL,
   `status` VARCHAR(32) NOT NULL DEFAULT 'open',
   `subtotal` DECIMAL(10,2) DEFAULT 0.00,       
   `discount_total` DECIMAL(10,2) DEFAULT 0.00, 
@@ -102,7 +113,8 @@ CREATE TABLE `orders` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  CONSTRAINT `fk_orders_table` FOREIGN KEY (`table_id`) REFERENCES `tables`(`id`) ON DELETE SET NULL
+  CONSTRAINT `fk_orders_table` FOREIGN KEY (`table_id`) REFERENCES `tables`(`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_orders_discount` FOREIGN KEY (`discount_id`) REFERENCES `discounts`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE `order_items` (
@@ -111,17 +123,19 @@ CREATE TABLE `order_items` (
   `order_id` INT UNSIGNED NOT NULL,
   `product_id` INT UNSIGNED NOT NULL,
   `variation_id` INT UNSIGNED DEFAULT NULL,
+  `discount_id` INT UNSIGNED DEFAULT NULL,
   `quantity` INT UNSIGNED NOT NULL DEFAULT 1,
   `base_price` DECIMAL(10,2) NOT NULL,      
   `modifier_total` DECIMAL(10,2) DEFAULT 0.00, 
   `discount_amount` DECIMAL(10,2) DEFAULT 0.00, 
-  `line_total` DECIMAL(10,2) NOT NULL,      
-  `notes` TEXT DEFAULT NULL,
+  `discount_note` VARCHAR(255) DEFAULT NULL,
+  `line_total` DECIMAL(10,2) NOT NULL,
   `served` INT UNSIGNED NOT NULL DEFAULT 0,
   `kitchen_printed` INT UNSIGNED NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  CONSTRAINT `fk_orderitems_order` FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`) ON DELETE CASCADE
+  CONSTRAINT `fk_orderitems_order` FOREIGN KEY (`order_id`) REFERENCES `orders`(`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_orderitems_discount` FOREIGN KEY (`discount_id`) REFERENCES `discounts`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE `order_item_modifiers` (
@@ -189,16 +203,6 @@ CREATE TABLE `category_variations` (
   CONSTRAINT `fk_cat_var_link` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE `discounts` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `name` VARCHAR(100) NOT NULL,           -- e.g. "Senior Citizen", "Employee Meal"
-  `type` ENUM('percent', 'fixed') NOT NULL DEFAULT 'percent',
-  `value` DECIMAL(10,2) NOT NULL DEFAULT 0.00, -- e.g. 20.00
-  `target_type` ENUM('all', 'highest', 'food', 'drink', 'custom') NOT NULL DEFAULT 'all',
-  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB;
-
 INSERT INTO `discounts` (`name`, `type`, `value`, `target_type`) VALUES 
 ('Senior/PWD', 'percent', 20.00, 'highest'), 
 ('Employee Meal', 'percent', 50.00, 'food'),
@@ -206,7 +210,18 @@ INSERT INTO `discounts` (`name`, `type`, `value`, `target_type`) VALUES
 
 -- --- SEED DATA ---
 INSERT INTO `roles` (`role_name`) VALUES ('Admin'), ('Manager'), ('Staff');
-INSERT INTO `categories` (`name`) VALUES ('Main'), ('Sides'), ('Drinks');
+INSERT INTO `categories` (`name`, `cat_type`) VALUES ('Iced Coffee', 'drink'), ('Sandwich', 'food'), ('Rice Meal', 'food');
+INSERT INTO `products` (`category_id`, `name`, `price`, `has_variation`, `available`, `kds`) VALUES
+(1, 'Iced Caramel Latte', 130.00, 0, 1, 1),
+(1, 'Iced Americano', 115.00, 0, 1, 1),
+(2, 'Clubhouse', 120.00, 0, 1, 1),
+(2, 'Clubhouse Gourmet', 90.00, 0, 1, 1),
+(3, 'Longanisa w/ Egg', 180.00, 0, 1, 1),
+(3, 'Tocino w/ Egg', 180.00, 0, 1, 1);
+INSERT INTO product_variations (`product_id`, `name`, `price`) VALUES
+(1, 'Regular', 130.00), (1, 'Large', 150.00),
+(2, 'Regular', 150.00), (2, 'Large', 130.00);
+
 INSERT INTO `printers` (`printer_label`, `connection_type`, `path`, `is_active`) VALUES
 ('Main Receipt Printer', 'usb', 'VOZY-80', 1);
 

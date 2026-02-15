@@ -20,7 +20,7 @@ if (!in_array($role, ['staff','admin','manager'])) {
 }
 
 $tables = [];
-$categoryTypes = []; // Array to store the REAL database types
+$categoryTypes = []; 
 $discounts = [];
 
 try {
@@ -41,7 +41,7 @@ try {
         $stmt->close();
     }
 
-    // 2. Fetch Active Discounts
+    // 2. Fetch Active Discounts (Now includes target_type)
     $d_res = $mysqli->query("SELECT * FROM discounts WHERE is_active = 1");
     if ($d_res) {
         while($d = $d_res->fetch_assoc()) {
@@ -49,8 +49,7 @@ try {
         }
     }
 
-    // 3. FETCH CATEGORY DEFINITIONS (The Fix for Senior Logic)
-    // We check if the column exists first to prevent crashing if you haven't run the ALTER TABLE yet
+    // 3. FETCH CATEGORY DEFINITIONS
     $colCheck = $mysqli->query("SHOW COLUMNS FROM `categories` LIKE 'cat_type'");
     $hasTypeCol = $colCheck && $colCheck->num_rows > 0;
     
@@ -58,7 +57,6 @@ try {
     $c_res = $mysqli->query($c_sql);
     if ($c_res) {
         while($c = $c_res->fetch_assoc()) {
-            // If column exists, use it. If not, fallback to 'food'.
             $categoryTypes[$c['name']] = $hasTypeCol ? $c['cat_type'] : 'food';
         }
     }
@@ -98,10 +96,7 @@ try {
             border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s;
         }
         .printBillBtn:hover { background-color: #546e7a; }
-        .discount-tag { color: #d32f2f; font-size: 0.8rem; display: block; }
-        .item-price { cursor: pointer; transition: color 0.2s; }
-        .item-price:hover { color: #2e7d32; text-decoration: underline; }
-
+        
         /* --- NEW EDIT MODE STYLES --- */
         .option-card {
             border: 1px solid #ddd; padding: 10px; margin: 5px; border-radius: 8px;
@@ -109,8 +104,8 @@ try {
         }
         .option-card:hover { background: #f9f9f9; }
         .option-card.selected {
-            border: 2px solid #2e7d32 !important; /* Green Border */
-            background-color: #e8f5e9;             /* Light Green BG */
+            border: 2px solid #2e7d32 !important; 
+            background-color: #e8f5e9;            
             color: #1b5e20;
         }
         .item-name-clickable {
@@ -124,8 +119,11 @@ try {
             border: none; border-radius: 8px; font-size: 1rem; font-weight: bold;
             cursor: pointer; text-align: left; transition: transform 0.1s;
             color: white;
+            position: relative;
         }
         .modal-btn:active { transform: scale(0.98); }
+        .modal-btn small { display: block; margin-top: 4px; font-weight: normal; font-size: 0.8rem; }
+        .swal-cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: left; max-height: 200px; overflow-y: auto; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -172,11 +170,13 @@ try {
                 <div class="empty-cart">Select a table and add items</div>
             </div>
             
-            <div class="cart-total">Total: <span id="cartTotal">₱0.00</span></div>
+            <div class="cart-total" style="font-size: 1rem; line-height: 1.5;">
+                Total: <span id="cartTotal">₱0.00</span>
+            </div>
             
             <div class="cart-actions">
-                <button onclick="applySmartDiscount()" style="grid-column: span 2; background: #ff9800; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-bottom: 5px;">
-                    % Apply Global/Senior Discount
+                <button onclick="openDiscountWizard()" style="grid-column: span 2; background: #ff9800; color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-bottom: 5px;">
+                    % Discounts & Promos
                 </button>
                 <button class="save-btn" id="saveBtn">Save Bill</button>
                 <button class="printBillBtn" id="printBillBtn">Print Bill</button>
@@ -198,13 +198,17 @@ try {
                     <div id="pmTotal" style="font-size:2.5rem; font-weight:800; color:#222;">₱0.00</div>
                 </div>
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:1.5rem;">
-                    <label style="cursor:pointer; border:2px solid #ddd; border-radius:8px; padding:10px; text-align:center; display:block;" id="labelCash">
-                        <input type="radio" name="pmMethod" id="pmCash" value="cash" checked style="display:none;">
-                        <strong>💵 Cash</strong>
+                    <label style="cursor:pointer;">
+                        <input type="radio" name="pmMethod" value="cash" checked style="display:none;">
+                        <span class="pm-method-content" style="border:2px solid #ddd; text-align:center;">
+                            <strong>💵 Cash</strong>
+                        </span>
                     </label>
-                    <label style="cursor:pointer; border:2px solid #ddd; border-radius:8px; padding:10px; text-align:center; display:block;" id="labelGcash">
-                        <input type="radio" name="pmMethod" id="pmGcash" value="gcash" style="display:none;">
-                        <strong>📱 GCash</strong>
+                    <label style="cursor:pointer;">
+                        <input type="radio" name="pmMethod" value="gcash" style="display:none;">
+                        <span class="pm-method-content" style="border:2px solid #ddd; text-align:center;">
+                            <strong>📱 GCash</strong>
+                        </span>
                     </label>
                 </div>
                 <div style="margin-bottom:1rem;">
@@ -212,10 +216,10 @@ try {
                     <input id="pmGiven" type="number" step="0.01" style="width:90%; padding:1rem; font-size:1.5rem; border:2px solid #eee; border-radius:8px; margin-top:5px; text-align:right;" placeholder="0.00">
                 </div>
                 <div style="display:flex; gap:8px; margin-bottom:1.5rem; flex-wrap:wrap; justify-content: center;">
+                    <button type="button" class="quick-cash" onclick="setCash(1)">₱1</button>
                     <button type="button" class="quick-cash" onclick="setCash(100)">₱100</button>
-                    <button type="button" class="quick-cash" onclick="setCash(200)">₱200</button>
+                    <button type="button" class="quick-cash" onclick="setCash(300)">₱300</button>
                     <button type="button" class="quick-cash" onclick="setCash(500)">₱500</button>
-                    <button type="button" class="quick-cash" onclick="setCash(1000)">₱1000</button>
                 </div>
                 <div style="background:#f1f8e9; padding:1rem; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
                     <span style="font-weight:600; color:#2e7d32;">CHANGE</span>
@@ -234,16 +238,17 @@ try {
     let selectedTableId = null;
     let cart = {}; 
     let currentOrderId = null;
-    let currentBillAmount = 0; 
     let pendingItem = null; 
     let editingUniqueKey = null; 
+    
+    // Global Discount State
+    let orderDiscount = 0;
+    let orderDiscountNote = '';
+    let currentGrandTotal = 0;
 
     // --- DOM Elements ---
-    
-    // Inject PHP data directly into JS so there is NO guessing
     const dbDiscounts = <?php echo json_encode($discounts); ?>;
     const dbCategoryTypes = <?php echo json_encode($categoryTypes); ?>;
-    
     const tableSelect = document.getElementById('tableSelect');
     const productsGrid = document.getElementById('productsGrid');
     const categoriesContainer = document.getElementById('categoriesContainer');
@@ -263,17 +268,13 @@ try {
 
     // --- Helper: Get Category Info + Type ---
     function getCategoryInfo(prodId) {
-        // Find the product in the local list
         for (let catName in allProducts) {
             let product = allProducts[catName].find(p => p.id == prodId);
             if (product) {
-                // 1. Check if the DB told us what type this category is
                 let dbType = dbCategoryTypes[catName] || 'food';
-                
-                // 2. Extra safety: Fallback keyword check if DB is missing data
                 if (!dbCategoryTypes[catName]) {
                     let lowerCat = catName.toLowerCase();
-                    const drinkKeywords = ['drink', 'beverage', 'beer', 'alcohol', 'wine', 'liquor', 'coffee', 'tea', 'juice', 'smoothie', 'shake', 'cocktail'];
+                    const drinkKeywords = ['drink', 'beverage', 'beer', 'alcohol', 'wine', 'liquor', 'coffee', 'tea', 'juice'];
                     if (drinkKeywords.some(k => lowerCat.includes(k))) {
                         dbType = 'drink';
                     }
@@ -284,14 +285,13 @@ try {
         return { name: 'Other', type: 'food' };
     }
 
-    // --- Printing ---
+    // --- (KEEP EXISTING HELPERS: triggerPrinting, toggleProductLock, updateOrderTime) ---
     function triggerPrinting(orderId, mode = 'all') {
         if (!orderId) return;
         fetch(`print_order.php?order_id=${orderId}&type=${mode}`, { method: 'GET', credentials: 'same-origin' })
         .catch(err => console.error('Printer request failed:', err));
     }
 
-    // --- Helpers ---
     function toggleProductLock() {
         productOverlay.style.display = !selectedTableId ? 'flex' : 'none';
         productSearch.disabled = !selectedTableId;
@@ -300,32 +300,24 @@ try {
     function updateOrderTime(orderId) {
         if (!orderId) return;
         fetch('update_order_time.php', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ order_id: orderId })
         }).catch(err => console.warn('Failed to update order time:', err));
     }
 
-    // --- NEW: EDIT & VARIATION LOGIC ---
-
-    // 1. Prepare to Edit (Called when clicking item name in cart)
+    // --- EDIT & VARIATION LOGIC (Keep existing) ---
     window.prepareEditCartItem = function(uniqueKey) {
         const item = cart[uniqueKey];
         if (!item) return;
-        if(item.served > 0) {
-            Swal.fire('Note', 'This item has already been served to the kitchen.', 'info');
-        }
+        if(item.served > 0) Swal.fire('Note', 'This item has already been served to the kitchen.', 'info');
         editingUniqueKey = uniqueKey; 
         showVariationPicker(item.productId, item.name, item); 
     };
 
-    // 2. Size/Variation Picker (Handles both New and Edit)
     function showVariationPicker(productId, productName, editItem = null) {
         fetch(`get_variations.php?product_id=${productId}`)
             .then(r => r.json())
             .then(data => {
-                // If no sizes, check modifiers
                 if (!data.sizes || data.sizes.length === 0) {
                     if (data.modifiers && data.modifiers.length > 0) {
                         pendingItem = { pId: productId, pName: productName, sId: null, sName: null, sPrice: data.base_price || 0 };
@@ -335,7 +327,6 @@ try {
                     }
                     return;
                 }
-
                 let html = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top:10px;">';
                 data.sizes.forEach(s => {
                     const isSelected = editItem && editItem.variationId == s.id ? 'selected' : '';
@@ -346,14 +337,10 @@ try {
                         </div>`;
                 });
                 html += '</div>';
-
                 window.currentEditItemContext = editItem; 
-
                 Swal.fire({ 
                     title: editItem ? 'Edit Size' : 'Select Size', 
-                    html: html, 
-                    showConfirmButton: false, 
-                    showCancelButton: true
+                    html: html, showConfirmButton: false, showCancelButton: true
                 }).then((res) => {
                     if(res.dismiss) { editingUniqueKey = null; window.currentEditItemContext = null; }
                 });
@@ -367,10 +354,8 @@ try {
         showModifierPicker(pId, pName, sId, sName, sPrice, editItem);
     };
 
-    // 3. Modifier Picker
     function showModifierPicker(pId, pName, sId, sName, sPrice, editItem = null) {
         pendingItem = { pId, pName, sId, sName, sPrice };
-
         fetch(`get_variations.php?product_id=${pId}`)
             .then(r => r.json())
             .then(data => {
@@ -378,16 +363,13 @@ try {
                     finishItemProcess([]); 
                     return;
                 }
-
                 let html = '<div style="text-align: left; max-height: 250px; overflow-y: auto;">';
                 data.modifiers.forEach(m => {
-                    let isChecked = '';
-                    let isSelectedClass = '';
+                    let isChecked = ''; let isSelectedClass = '';
                     if (editItem && editItem.modifiers) {
                         const exists = editItem.modifiers.find(em => em.id == m.id);
                         if (exists) { isChecked = 'checked'; isSelectedClass = 'selected'; }
                     }
-
                     html += `
                         <label class="option-card mod-card ${isSelectedClass}" onclick="toggleModClass(this)">
                             <div style="display:flex; justify-content:space-between;">
@@ -400,25 +382,17 @@ try {
                         </label>`;
                 });
                 html += '</div>';
-
                 Swal.fire({
                     title: editItem ? 'Edit Add-ons' : 'Add-ons?',
-                    html: html,
-                    showCancelButton: true,
-                    confirmButtonText: editItem ? 'Update Item' : 'Add to Cart',
+                    html: html, showCancelButton: true, confirmButtonText: editItem ? 'Update Item' : 'Add to Cart',
                     preConfirm: () => {
                         return Array.from(document.querySelectorAll('.mod-check:checked')).map(cb => ({
-                            id: cb.value,
-                            name: cb.dataset.name,
-                            price: parseFloat(cb.dataset.price)
+                            id: cb.value, name: cb.dataset.name, price: parseFloat(cb.dataset.price)
                         }));
                     }
                 }).then(res => { 
-                    if (res.isConfirmed) {
-                        finishItemProcess(res.value);
-                    } else {
-                        editingUniqueKey = null; 
-                    }
+                    if (res.isConfirmed) finishItemProcess(res.value);
+                    else editingUniqueKey = null; 
                 });
             });
     }
@@ -429,31 +403,22 @@ try {
         if (cb.checked) el.classList.add('selected'); else el.classList.remove('selected');
     };
 
-    // 4. Final Processing
     function finishItemProcess(selectedMods) {
         const p = pendingItem;
         const extraPrice = selectedMods.reduce((sum, m) => sum + m.price, 0);
-
         if (editingUniqueKey) {
             const oldItem = cart[editingUniqueKey];
-            oldItem.variationId = p.sId;
-            oldItem.variationName = p.sName;
-            oldItem.basePrice = parseFloat(p.sPrice);
-            oldItem.modifiers = selectedMods;
+            oldItem.variationId = p.sId; oldItem.variationName = p.sName;
+            oldItem.basePrice = parseFloat(p.sPrice); oldItem.modifiers = selectedMods;
             oldItem.modifierTotal = extraPrice;
-            updateCart();
-            updateTableStatus();
-            editingUniqueKey = null; 
-            window.currentEditItemContext = null;
+            updateCart(); updateTableStatus(); editingUniqueKey = null; window.currentEditItemContext = null;
         } else {
             addToCart(p.pId, p.pName, p.sPrice, p.sId, p.sName, selectedMods, extraPrice);
         }
         Swal.close();
     }
 
-    // --- CORE CART LOGIC ---
-
-    function addToCart(prodId, prodName, basePrice, varId = null, varName = null, modifiers = [], modTotal = 0, existingNotes = '', servedQty = 0, dbItemId = null) {
+    function addToCart(prodId, prodName, basePrice, varId = null, varName = null, modifiers = [], modTotal = 0, servedQty = 0, dbItemId = null) {
         if (!modifiers) modifiers = [];
         const modIdString = modifiers.map(m => m.id).sort().join('-');
         const uniqueKey = `p${prodId}_v${varId || 0}_m${modIdString || 0}`;
@@ -466,16 +431,15 @@ try {
                 order_item_id: dbItemId,
                 productId: prodId,
                 name: prodName,
-                variationId: varId,
-                variationName: varName,
+                variationId: varId, variationName: varName,
                 basePrice: parseFloat(basePrice),
                 modifierTotal: parseFloat(modTotal),
                 category: catInfo.name,      
-                categoryType: catInfo.type,  // THIS IS THE CRITICAL FIX
+                categoryType: catInfo.type, 
                 discountAmount: 0,
+                discountNote: '',
                 modifiers: modifiers,
                 qty: 1,
-                notes: existingNotes,
                 served: servedQty
             };
         }
@@ -483,10 +447,11 @@ try {
         updateTableStatus();
     }
 
+    // --- CORE UPDATE CART ---
     function updateCart() {
         cartItems.innerHTML = ''; 
         let subtotal = 0;
-        let totalDiscount = 0;
+        let totalItemDiscount = 0;
 
         Object.entries(cart).forEach(([key, it]) => {
             const unitPrice = it.basePrice + it.modifierTotal;
@@ -494,8 +459,8 @@ try {
             const lineDiscount = parseFloat(it.discountAmount || 0); 
             const finalLineTotal = itemSubtotal - lineDiscount;
             
-            subtotal += itemSubtotal;
-            totalDiscount += lineDiscount;
+            subtotal += itemSubtotal; 
+            totalItemDiscount += lineDiscount;
 
             let displayName = it.name;
             if(it.variationName) displayName += ` <span style="color:#666;">(${it.variationName})</span>`;
@@ -505,7 +470,6 @@ try {
                 modString = '<br><small style="color:#2e7d32;">+ ' + it.modifiers.map(m => m.name).join(', ') + '</small>';
             }
 
-            // Visual Strikethrough Logic
             let priceHTML = `₱${finalLineTotal.toFixed(2)}`;
             if (lineDiscount > 0) {
                 priceHTML = `
@@ -517,21 +481,25 @@ try {
                 `;
             }
 
+            let itemNoteHtml = '';
+            if (it.discountNote && it.discountNote.trim() !== '') {
+                itemNoteHtml = `<br><small style="color: #d32f2f; font-weight: bold;">[${it.discountNote}]</small>`;
+            }
+
             const row = document.createElement('div');
             row.className = 'cart-item';
             row.innerHTML = `
                 <div class="item-name item-name-clickable" onclick="prepareEditCartItem('${key}')">
                     ${displayName}
                     ${modString}
-                    ${it.notes ? `<br><small style="color:#888;">Note: ${it.notes}</small>` : ''}
-                    ${it.discountNote ? `<br><small style="color:#d32f2f; font-weight:bold;">[${it.discountNote}]</small>` : ''}
+                    ${itemNoteHtml}
                 </div>
                 <div class="qty-control">
                     <button class="qty-btn" onclick="changeQty('${key}', -1)">−</button>
                     <input type="text" class="item-qty-input" value="${it.qty}" readonly>
                     <button class="qty-btn" onclick="changeQty('${key}', 1)">+</button>
                 </div>
-                <div class="item-price" onclick="applyItemDiscount('${key}')" style="min-width: 80px;">
+                <div class="item-price" onclick="applyItemDiscount('${key}')" style="min-width: 60px;">
                     ${priceHTML}
                 </div>
                 <button class="item-remove" onclick="removeFromCart('${key}')">×</button>
@@ -539,93 +507,251 @@ try {
             cartItems.appendChild(row);
         });
 
-        const grandTotal = subtotal - totalDiscount;
+        // --- GLOBAL DISCOUNT CALCULATION ---
+        const billSubtotal = subtotal - totalItemDiscount; 
+        currentGrandTotal = billSubtotal - orderDiscount;
+        if(currentGrandTotal < 0) currentGrandTotal = 0;
 
-        cartTotal.innerHTML = `
-            <div style="font-size: 0.9rem; color: #666; text-align: right;">Subtotal: ₱${subtotal.toFixed(2)}</div>
-            ${totalDiscount > 0 ? `<div style="font-size: 0.9rem; color: #d32f2f; text-align: right; font-weight:bold;">Total Discount: -₱${totalDiscount.toFixed(2)}</div>` : ''}
-            <div style="font-size: 1.6rem; font-weight: bold; text-align: right; margin-top: 5px; color: #1b5e20;">Total: ₱${grandTotal.toFixed(2)}</div>
-        `;
+        let summaryHTML = `<div style="font-size: 0.9rem; color: #666; text-align: right;">Subtotal: ₱${subtotal.toFixed(2)}</div>`;
+        if (totalItemDiscount > 0) {
+            summaryHTML += `<div style="font-size: 0.9rem; color: #d32f2f; text-align: right;">Item Disc: -₱${totalItemDiscount.toFixed(2)}</div>`;
+        }
+        if (orderDiscount > 0) {
+            summaryHTML += `
+                <div style="font-size: 0.9rem; color: #d32f2f; text-align: right; font-weight:bold; border-bottom: 1px dashed #ccc; padding-bottom:5px; margin-bottom:5px;">
+                    ${orderDiscountNote || 'Global Discount'}: -₱${orderDiscount.toFixed(2)}
+                </div>`;
+        }
+        summaryHTML += `<div style="font-size: 1.6rem; font-weight: bold; text-align: right; margin-top: 5px; color: #1b5e20;">Total: ₱${currentGrandTotal.toFixed(2)}</div>`;
+        cartTotal.innerHTML = summaryHTML;
 
         if (Object.keys(cart).length === 0) cartItems.innerHTML = '<div class="empty-cart">Select a table and add items</div>';
     }
 
-    // --- DISCOUNT LOGIC (Fixed for Senior) ---
+    // ============================================
+    //         UPDATED DISCOUNT LOGIC
+    // ============================================
 
-    window.applyItemDiscount = function(key) {
-        const item = cart[key];
-        const itemSubtotal = (item.basePrice + item.modifierTotal) * item.qty;
+    window.openDiscountWizard = function() {
+        const keys = Object.keys(cart);
+        if (keys.length === 0) return Swal.fire('Error', 'Cart is empty', 'error');
+
+        // 1. Generate Database Discount Buttons
+        let dbBtnsHtml = '';
+        if (dbDiscounts && dbDiscounts.length > 0) {
+            dbDiscounts.forEach(d => {
+                const valLabel = d.type === 'percent' ? `${d.value}%` : `₱${d.value}`;
+                let scopeLabel = d.target_type === 'all' ? 'Entire Bill' : d.target_type;
+                if(d.target_type === 'highest') scopeLabel = 'Highest Item';
+                
+                dbBtnsHtml += `
+                    <button onclick="applyDbDiscount(${d.id})" class="modal-btn" style="background:#607d8b;">
+                        🏷️ ${d.name} <span style="float:right; opacity:0.8;">${valLabel}</span>
+                        <small style="color:#cfd8dc; text-transform:uppercase;">Applies to: ${scopeLabel}</small>
+                    </button>
+                `;
+            });
+        } else {
+            dbBtnsHtml = '<div style="color:#999; text-align:center; padding:10px;">No presets found.</div>';
+        }
 
         Swal.fire({
-            title: 'Apply Discount',
+            title: 'Select Discount',
             html: `
-                <div style="text-align: left; font-size: 0.9rem; color: #666; margin-bottom: 10px;">
-                    Item Subtotal: <strong>₱${itemSubtotal.toFixed(2)}</strong>
+                <div style="display: flex; flex-direction:column; gap: 8px; max-height: 450px; overflow-y: auto;">
+                    ${dbBtnsHtml}
+                    <hr style="width:100%; border:0; border-top:1px dashed #ccc; margin: 5px 0;">
+                    
+                    <button onclick="showGlobalDiscountInput()" class="modal-btn" style="background:#e91e63;">
+                        ❤️ Manual / Custom
+                        <small style="color:white; opacity:0.8;">Custom Amount or Category Select</small>
+                    </button>
+
+                    <button onclick="executeSeniorDiscount()" class="modal-btn" style="background:#ff9800;">
+                        👴 Senior/PWD (1 Food+1 Drink)
+                        <small style="color:white; opacity:0.8;">Auto-calculate complex rule</small>
+                    </button>
+
+                    <button onclick="clearAllDiscounts()" class="modal-btn" style="background:#f44336; margin-top:10px;">
+                        ❌ Clear All Discounts
+                    </button>
                 </div>
-                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                    <select id="discType" class="swal2-input" style="margin:0; flex: 1;">
-                        <option value="percent" ${item.discountType === 'percent' ? 'selected' : ''}>% Percentage</option>
-                        <option value="fixed" ${item.discountType === 'fixed' ? 'selected' : ''}>₱ Fixed Amount</option>
+            `,
+            showConfirmButton: false, showCancelButton: true, cancelButtonText: 'Close'
+        });
+    };
+
+    // --- Apply DB Discount based on Target Type ---
+    window.applyDbDiscount = function(dId) {
+        const d = dbDiscounts.find(x => x.id == dId);
+        if(!d) return;
+
+        // Reset previous discounts to avoid conflicts
+        clearLocalDiscounts();
+
+        const val = parseFloat(d.value);
+        const isPercent = (d.type === 'percent');
+        const note = d.name;
+
+        // CASE 1: CUSTOM (Triggers the manual category selector with preset value)
+        if (d.target_type === 'custom') {
+            Swal.close();
+            // Pass the preset values to the custom wizard
+            return showGlobalDiscountInput(val, d.type, note);
+        }
+
+        // CASE 2: ALL (Global Order Discount)
+        if (d.target_type === 'all') {
+            let runningTotal = 0;
+            Object.values(cart).forEach(it => { runningTotal += (it.basePrice + it.modifierTotal) * it.qty; });
+            orderDiscount = isPercent ? (runningTotal * (val / 100)) : val;
+            orderDiscountNote = note;
+        }
+
+        // CASE 3: HIGHEST (Single costliest item)
+        else if (d.target_type === 'highest') {
+            let maxPrice = -1; let maxKey = null;
+            Object.entries(cart).forEach(([k, it]) => {
+                const unitTotal = it.basePrice + it.modifierTotal;
+                if (unitTotal > maxPrice) { maxPrice = unitTotal; maxKey = k; }
+            });
+            if (maxKey) {
+                // Apply discount to the line (or 1 unit? Usually logic implies 1 unit if 'Highest Item')
+                // Here we apply to the *line total* of that item for simplicity, or we can cap it.
+                // Let's apply standard logic: Value off the Item's Line Total
+                const lineTotal = cart[maxKey].qty * maxPrice;
+                cart[maxKey].discountAmount = isPercent ? (lineTotal * (val / 100)) : val;
+                cart[maxKey].discountNote = note;
+            }
+        }
+
+        // CASE 4: FOOD or DRINK (Category Type)
+        else if (d.target_type === 'food' || d.target_type === 'drink') {
+            Object.keys(cart).forEach(k => {
+                const it = cart[k];
+                if (it.categoryType === d.target_type) {
+                    const lineTotal = (it.basePrice + it.modifierTotal) * it.qty;
+                    cart[k].discountAmount = isPercent ? (lineTotal * (val / 100)) : val;
+                    cart[k].discountNote = note;
+                }
+            });
+        }
+
+        updateCart();
+        Swal.close();
+        Swal.fire({ icon: 'success', title: 'Applied', text: `${note} applied successfully`, timer: 1000, showConfirmButton: false });
+    };
+
+    // --- Manual / Custom Discount Wizard ---
+    window.showGlobalDiscountInput = function(preVal=null, preType='percent', preNote='') {
+        // Build Category Checkboxes
+        let catChecks = '';
+        Object.keys(allProducts).forEach(cat => {
+            catChecks += `
+                <label style="display:flex; align-items:center; font-size:0.9rem;">
+                    <input type="checkbox" class="swal-cat-check" value="${cat}"> &nbsp; ${cat}
+                </label>`;
+        });
+
+        Swal.fire({
+            title: 'Custom Discount',
+            html: `
+                <div style="text-align:left; font-weight:bold; margin-bottom:5px;">1. Value</div>
+                <div style="display:flex; gap:10px; margin-bottom:15px;">
+                    <input type="number" id="gDiscVal" class="swal2-input" placeholder="Amount" value="${preVal||''}" style="margin:0; flex:1;">
+                    <select id="gDiscType" class="swal2-input" style="margin:0; width:100px;">
+                        <option value="percent" ${preType==='percent'?'selected':''}>%</option>
+                        <option value="fixed" ${preType!=='percent'?'selected':''}>₱</option>
                     </select>
-                    <input type="number" id="discValue" class="swal2-input" style="margin:0; flex: 1;" placeholder="Value" value="${item.discountValue || 0}">
                 </div>
-                <input type="text" id="discNote" class="swal2-input" style="margin:0; width: 90%;" placeholder="Reason (e.g. Senior Citizen, PWD)" value="${item.discountNote || ''}">
+                
+                <div style="text-align:left; font-weight:bold; margin-bottom:5px;">2. Reason</div>
+                <input type="text" id="gDiscNote" class="swal2-input" placeholder="Reason (e.g. Promo)" value="${preNote}" style="margin:0; margin-bottom:15px; width:100%;">
+
+                <div style="text-align:left; font-weight:bold; margin-bottom:5px;">3. Target Scope</div>
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                    <label style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px; cursor:pointer;">
+                        <input type="radio" name="gScope" value="all" checked onchange="document.getElementById('catSelectArea').style.display='none'"> 
+                        Entire Bill
+                    </label>
+                    <label style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px; cursor:pointer;">
+                        <input type="radio" name="gScope" value="cats" onchange="document.getElementById('catSelectArea').style.display='grid'"> 
+                        Specific Categories
+                    </label>
+                </div>
+                
+                <div id="catSelectArea" class="swal-cat-grid" style="display:none; border:1px solid #eee; padding:10px; border-radius:6px;">
+                    ${catChecks}
+                </div>
             `,
             showCancelButton: true,
-            confirmButtonText: 'Apply',
+            confirmButtonText: 'Apply Discount',
             preConfirm: () => {
-                const type = document.getElementById('discType').value;
-                const val = parseFloat(document.getElementById('discValue').value) || 0;
-                const note = document.getElementById('discNote').value;
-                let finalDiscount = (type === 'percent') ? itemSubtotal * (val / 100) : val;
-                if (finalDiscount > itemSubtotal) finalDiscount = itemSubtotal;
-                return { finalDiscount, type, val, note };
+                const val = parseFloat(document.getElementById('gDiscVal').value);
+                const type = document.getElementById('gDiscType').value;
+                const note = document.getElementById('gDiscNote').value || 'Custom';
+                const scope = document.querySelector('input[name="gScope"]:checked').value;
+                
+                if(!val) return Swal.showValidationMessage('Enter a value');
+                
+                let selectedCats = [];
+                if(scope === 'cats') {
+                    document.querySelectorAll('.swal-cat-check:checked').forEach(c => selectedCats.push(c.value));
+                    if(selectedCats.length === 0) return Swal.showValidationMessage('Select at least one category');
+                }
+                
+                return { val, type, note, scope, selectedCats };
             }
-        }).then((result) => {
-            if (result.isConfirmed) {
-                const { finalDiscount, type, val, note } = result.value;
-                cart[key].discountAmount = finalDiscount;
-                cart[key].discountType = type;     
-                cart[key].discountValue = val;     
-                cart[key].discountNote = note;     
+        }).then(res => {
+            if (res.isConfirmed) {
+                clearLocalDiscounts();
+                const { val, type, note, scope, selectedCats } = res.value;
+
+                if (scope === 'all') {
+                    // Apply to Order Global
+                    let runningTotal = 0;
+                    Object.values(cart).forEach(it => { runningTotal += (it.basePrice + it.modifierTotal) * it.qty; });
+                    orderDiscount = (type === 'percent') ? (runningTotal * (val / 100)) : val;
+                    orderDiscountNote = note;
+                } else {
+                    // Apply to Specific Categories (Item Level)
+                    Object.keys(cart).forEach(k => {
+                        const it = cart[k];
+                        if (selectedCats.includes(it.category)) {
+                            const lineTotal = (it.basePrice + it.modifierTotal) * it.qty;
+                            cart[k].discountAmount = (type === 'percent') ? (lineTotal * (val / 100)) : val;
+                            cart[k].discountNote = note;
+                        }
+                    });
+                }
                 updateCart();
             }
         });
     };
 
-    window.applySmartDiscount = function() {
-        const keys = Object.keys(cart);
-        if (keys.length === 0) return Swal.fire('Error', 'Cart is empty', 'error');
-
-        Swal.fire({
-            title: 'Select Discount Type',
-            html: `
-                <div style="display: grid; grid-template-columns: 1fr; gap: 10px;">
-                    <button onclick="executeSeniorDiscount()" class="modal-btn" style="background:#ff9800;">👴 Senior Citizen / PWD (20%)</button>
-                    <button onclick="showCustomDiscountWizard()" class="modal-btn" style="background:#2196f3;">🎨 Custom Promo / Global %</button>
-                    <button onclick="clearAllDiscounts()" class="modal-btn" style="background:#f44336;">❌ Clear All Discounts</button>
-                </div>
-            `,
-            showConfirmButton: false,
-            showCancelButton: true,
-            cancelButtonText: 'Close'
+    function clearLocalDiscounts() {
+        Object.keys(cart).forEach(k => {
+            cart[k].discountAmount = 0;
+            cart[k].discountNote = '';
+            // Safety clear
+            cart[k].discountValue = 0; 
+            if(cart[k].notes) cart[k].notes = ''; 
         });
-    };
+        orderDiscount = 0;
+        orderDiscountNote = '';
+    }
 
+    // Senior Discount (Complex 1 Food + 1 Drink Logic)
     window.executeSeniorDiscount = function() {
         const keys = Object.keys(cart);
         let foodKey = null; let maxFoodPrice = 0;
         let drinkKey = null; let maxDrinkPrice = 0;
 
-        // Reset
-        keys.forEach(k => { cart[k].discountAmount = 0; cart[k].discountNote = ''; });
+        clearLocalDiscounts();
 
         keys.forEach(k => {
             const it = cart[k];
-            // Calculate price of ONE unit (Senior Discount is usually per person/serving)
             const unitPrice = it.basePrice + it.modifierTotal;
-            
-            // USE THE REAL TYPE (fetched from DB in PHP above)
             if (it.categoryType === 'drink') {
                 if (unitPrice > maxDrinkPrice) { maxDrinkPrice = unitPrice; drinkKey = k; }
             } else {
@@ -633,108 +759,119 @@ try {
             }
         });
 
-        // Apply 20% to one Food and one Drink
+        let applied = false;
         if (foodKey) {
+            // Apply 20% to the single food item line (assuming qty 1, if qty > 1 logic might need split, keeping simple)
             cart[foodKey].discountAmount = (cart[foodKey].basePrice + cart[foodKey].modifierTotal) * 0.20;
-            cart[foodKey].discountNote = "Senior (Food)";
+            cart[foodKey].discountNote = "Senior/PWD (Food)";
+            applied = true;
         }
         if (drinkKey) {
             cart[drinkKey].discountAmount = (cart[drinkKey].basePrice + cart[drinkKey].modifierTotal) * 0.20;
-            cart[drinkKey].discountNote = "Senior (Drink)";
+            cart[drinkKey].discountNote = "Senior/PWD (Drink)";
+            applied = true;
         }
 
         updateCart();
         Swal.close(); 
-        Swal.fire('Applied', '20% applied to 1 Food and 1 Drink item.', 'success');
+        if(applied) Swal.fire('Applied', '20% applied to 1 Food and/or 1 Drink item.', 'success');
+        else Swal.fire('No Match', 'Add food or drink items first.', 'warning');
     };
 
-    window.showCustomDiscountWizard = function() {
-        const allCats = Object.keys(allProducts);
-        const catCheckboxes = allCats.map(cat => 
-            `<label style="display:block; text-align:left; margin:5px 0;">
-                <input type="checkbox" class="cat-check" value="${cat}" checked> ${cat}
-            </label>`
-        ).join('');
+    // Item Manual Discount (Single Item Click)
+    window.applyItemDiscount = function(key) {
+        const item = cart[key];
+        const itemSubtotal = (item.basePrice + item.modifierTotal) * item.qty;
 
         Swal.fire({
-            title: 'Custom Discount',
+            title: 'Apply Item Discount',
             html: `
-                <input type="number" id="custVal" class="swal2-input" placeholder="Value (e.g. 10)">
-                <select id="custType" class="swal2-input"><option value="percent">% Percent</option><option value="fixed">₱ Fixed Amount</option></select>
-                <input type="text" id="custNote" class="swal2-input" placeholder="Reason (e.g. Promo)">
-                <div style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin-top: 10px; max-height: 150px; overflow-y: auto;">
-                    <div style="font-weight:bold; margin-bottom:5px;">Apply to:</div>
-                    ${catCheckboxes}
+                <div style="text-align: left; font-size: 0.9rem; color: #666; margin-bottom: 10px;">
+                    Item: <strong>${item.name}</strong><br>
+                    Subtotal: <strong>₱${itemSubtotal.toFixed(2)}</strong>
                 </div>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <select id="discType" class="swal2-input" style="margin:0; flex: 1;">
+                        <option value="percent">% Percentage</option>
+                        <option value="fixed">₱ Fixed Amount</option>
+                    </select>
+                    <input type="number" id="discValue" class="swal2-input" style="margin:0; flex: 1;" placeholder="Value">
+                </div>
+                <input type="text" id="discNote" class="swal2-input" style="margin:0; width: 90%;" placeholder="Reason (Optional)" value="${item.discountNote || ''}">
             `,
-            showCancelButton: true,
+            showCancelButton: true, confirmButtonText: 'Apply',
             preConfirm: () => {
-                const val = parseFloat(document.getElementById('custVal').value);
-                const type = document.getElementById('custType').value;
-                const note = document.getElementById('custNote').value;
-                const selectedCats = Array.from(document.querySelectorAll('.cat-check:checked')).map(c => c.value);
-                
-                if(!val) return Swal.showValidationMessage('Enter a value');
-                
-                Object.keys(cart).forEach(k => {
-                    if (selectedCats.includes(cart[k].category)) {
-                        const total = (cart[k].basePrice + cart[k].modifierTotal) * cart[k].qty;
-                        cart[k].discountAmount = type === 'percent' ? (total * (val / 100)) : val;
-                        cart[k].discountNote = note || 'Custom';
-                    }
-                });
+                const type = document.getElementById('discType').value;
+                const val = parseFloat(document.getElementById('discValue').value) || 0;
+                const note = document.getElementById('discNote').value;
+                let finalDiscount = (type === 'percent') ? itemSubtotal * (val / 100) : val;
+                if (finalDiscount > itemSubtotal) finalDiscount = itemSubtotal;
+                return { finalDiscount, note };
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                cart[key].discountAmount = result.value.finalDiscount;
+                cart[key].discountNote = result.value.note;     
                 updateCart();
             }
         });
     };
 
     window.clearAllDiscounts = function() {
-        Object.keys(cart).forEach(k => {
-            cart[k].discountAmount = 0;
-            cart[k].discountNote = '';
-        });
+        clearLocalDiscounts();
         updateCart();
         Swal.close();
     };
 
+    // ... (Keep the rest of the file: loadCart, saveCart, loadProducts, events) ...
+    // The previous implementation of these functions is fine, just ensure loadCart maps 'discount_note' correctly.
+    
     function loadCart() {
-        if (!selectedTableId) { cart = {}; currentOrderId = null; updateCart(); return; }
+        if (!selectedTableId) { 
+            cart = {}; currentOrderId = null; 
+            orderDiscount = 0; orderDiscountNote = '';
+            updateCart(); return; 
+        }
         fetch('get_pos_cart.php?table_id=' + encodeURIComponent(selectedTableId))
             .then(r => r.json())
             .then(data => {
                 cart = {}; 
                 if (data.success) {
                     currentOrderId = data.order_id;
+                    orderDiscount = parseFloat(data.order_discount || 0);
+                    orderDiscountNote = data.order_discount_note || '';
+
                     (data.items || []).forEach(item => {
                         const mods = item.modifiers || [];
                         const modString = mods.map(m => m.id).sort().join('-');
-                        const uKey = `p${item.product_id}_v${item.size_id || 0}_m${modString || 0}_db${item.order_item_id}`; 
-                        const catInfo = getCategoryInfo(item.product_id); // Gets the CORRECT type now
+                        const uKey = `p${item.product_id}_v${item.variation_id || item.size_id || 0}_m${modString || 0}_db${item.order_item_id}`; 
+                        const catInfo = getCategoryInfo(item.product_id);
 
                         cart[uKey] = {
                             order_item_id: item.order_item_id,
                             productId: item.product_id, 
                             name: item.name, 
-                            variationId: item.size_id || null,
-                            variationName: item.variation_name || null,
-                            basePrice: parseFloat(item.base_price || item.price),
-                            modifierTotal: parseFloat(item.modifier_total || 0),
-                            discountAmount: parseFloat(item.discount_amount || 0),
-                            discountNote: item.discount_note || '', 
+                            variationId: item.variation_id || item.size_id || null,
+                            variationName: item.variation_name || item.variationName || null,
+                            basePrice: parseFloat(item.base_price || item.basePrice || 0),
+                            modifierTotal: parseFloat(item.modifier_total || item.modifierTotal || 0),
+                            discountAmount: parseFloat(item.discount_amount || item.discountAmount || 0),
+                            discountNote: item.discount_note || item.discountNote || '', 
                             modifiers: mods,
-                            qty: parseInt(item.quantity), 
-                            notes: item.notes || '',
+                            qty: parseInt(item.quantity || item.qty || 0),
                             served: parseInt(item.served || 0),
                             category: catInfo.name,     
                             categoryType: catInfo.type, 
                             unique_key: uKey 
                         };
                     });
-                } else { currentOrderId = null; }
+                } else { currentOrderId = null; orderDiscount = 0; orderDiscountNote = ''; }
                 updateCart();
             });
     }
 
+    // (KEEP THE REST OF THE FILE EXACTLY AS BEFORE: saveCart, loadProducts, etc.)
+    // ...
     function saveCart(allowEmpty = false) {
         if (!selectedTableId) return Promise.reject('No table selected');
         let validItems = [];
@@ -750,18 +887,20 @@ try {
                 modifier_total: it.modifierTotal,
                 discount_amount: it.discountAmount,
                 discount_note: it.discountNote || '', 
-                modifiers: it.modifiers,
-                notes: it.notes
+                modifiers: it.modifiers
             });
         }
         if (validItems.length === 0 && !allowEmpty) return Promise.reject('Cart empty'); 
 
         saveBtn.disabled = true;
         return fetch('save_pos_cart.php', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ table_id: selectedTableId, items: validItems })
+            method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                table_id: selectedTableId, 
+                items: validItems,
+                order_discount: orderDiscount,
+                order_discount_note: orderDiscountNote
+            })
         })
         .then(r => r.json())
         .then(data => {
@@ -780,7 +919,6 @@ try {
         .finally(() => { saveBtn.disabled = false; });
     }
 
-    // --- PRODUCT RENDERING ---
     function loadProducts() {
         fetch('get_products.php', { credentials: 'same-origin' })
             .then(r => r.json())
@@ -819,21 +957,17 @@ try {
             card.className = 'product-card';
             card.innerHTML = `<div class="product-name">${p.name}</div>
                             <div class="product-price">${parseInt(p.has_variation) === 1 ? 'Starts at ' : ''}₱${parseFloat(p.price).toFixed(2)}</div>`;
-            
             card.onclick = () => {
                 editingUniqueKey = null; 
                 const needsPicker = parseInt(p.has_variation) === 1 || parseInt(p.has_modifiers) === 1;
-                if (needsPicker) {
-                    showVariationPicker(p.id, p.name);
-                } else {
-                    addToCart(p.id, p.name, p.price, null, null, [], 0);
-                }
+                if (needsPicker) showVariationPicker(p.id, p.name);
+                else addToCart(p.id, p.name, p.price, null, null, [], 0);
             };
             productsGrid.appendChild(card);
         });
     }
 
-    // --- EVENTS & UTILS ---
+    // --- EVENTS & UTILS (Keep Existing) ---
     window.changeQty = function(key, d) {
         if (cart[key]) {
             const newQty = cart[key].qty + d;
@@ -864,9 +998,7 @@ try {
     function updateTableStatus() {
         if (!selectedTableId) return;
         fetch('../toggle_table_status.php', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: selectedTableId, occupied: Object.keys(cart).length > 0 ? 1 : 0 })
         });
     }
@@ -890,11 +1022,8 @@ try {
     checkoutBtn.onclick = () => {
         if (!selectedTableId || Object.keys(cart).length === 0) return;
         saveCart(false).then(() => {
-            currentBillAmount = Object.values(cart).reduce((s, it) => {
-                return s + ((it.basePrice + it.modifierTotal) * it.qty) - it.discountAmount;
-            }, 0);
-            document.getElementById('pmTotal').textContent = '₱' + currentBillAmount.toFixed(2);
-            document.getElementById('pmGiven').value = currentBillAmount.toFixed(2);
+            document.getElementById('pmTotal').textContent = '₱' + currentGrandTotal.toFixed(2);
+            document.getElementById('pmGiven').value = currentGrandTotal.toFixed(2);
             document.getElementById('paymentPopup').style.display = 'flex';
             updateChange();
         });
@@ -903,7 +1032,8 @@ try {
     clearBtn.onclick = () => {
         Swal.fire({ title: 'Clear cart?', icon: 'warning', showCancelButton: true }).then(res => {
             if (res.isConfirmed) {
-                cart = {}; updateCart(); saveCart(true); updateTableStatus();
+                cart = {}; orderDiscount=0; orderDiscountNote='';
+                updateCart(); saveCart(true); updateTableStatus();
             }
         });
     };
@@ -930,36 +1060,84 @@ try {
 
     function updateChange() {
         const given = parseFloat(document.getElementById('pmGiven').value) || 0;
-        const diff = given - currentBillAmount;
+        const diff = given - currentGrandTotal;
         const lbl = document.getElementById('pmChange');
+        
+        // Format with absolute value for the display
         lbl.textContent = (diff < 0 ? '-₱' : '₱') + Math.abs(diff).toFixed(2);
         lbl.style.color = diff < 0 ? '#d32f2f' : '#2e7d32';
     }
 
-    document.getElementById('pmGiven').oninput = updateChange;
-    window.setCash = (a) => { document.getElementById('pmGiven').value = a.toFixed(2); updateChange(); };
-    document.getElementById('pmClose').onclick = document.getElementById('pmCancel').onclick = () => {
+    // FIX: This now adds to the current value instead of overwriting it
+    window.setCash = (amount) => {
+        const input = document.getElementById('pmGiven');
+        let current = parseFloat(input.value) || 0;
+        input.value = (current + amount).toFixed(2);
+        updateChange();
+    };
+
+    // FIX: Reset input to 0 when opening the checkout
+    checkoutBtn.onclick = () => {
+        if (!selectedTableId || Object.keys(cart).length === 0) return;
+        
+        saveCart(false).then(() => {
+            document.getElementById('pmTotal').textContent = '₱' + currentGrandTotal.toFixed(2);
+            
+            // Start at 0 so the +100, +500 buttons work additively
+            const amountInput = document.getElementById('pmGiven');
+            amountInput.value = ""; 
+            
+            document.getElementById('paymentPopup').style.display = 'flex';
+            updateChange();
+            
+            setTimeout(() => amountInput.focus(), 100);
+        });
+    };
+
+    // Add a "Clear" button function if you want to reset the input quickly
+    window.clearCash = () => {
+        document.getElementById('pmGiven').value = "";
+        updateChange();
+    };
+
+    document.getElementById('pmCancel').onclick = () => {
         document.getElementById('paymentPopup').style.display = 'none';
     };
 
     document.getElementById('pmConfirm').onclick = () => {
-        const method = document.querySelector('input[name="pmMethod"]:checked').value;
+        const selectedMethod = document.querySelector('input[name="pmMethod"]:checked');
+        const method = selectedMethod ? selectedMethod.value : 'cash';
         const given = parseFloat(document.getElementById('pmGiven').value || 0);
-        if (given < (currentBillAmount - 0.01)) { Swal.fire('Error', 'Insufficient amount', 'warning'); return; }
-        
+
+        if (given < (currentGrandTotal - 0.01)) {
+            Swal.fire('Error', 'Insufficient amount', 'warning');
+            return;
+        }
+
         fetch('checkout_order.php', {
             method: 'POST',
-            credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order_id: currentOrderId, payment_method: method, amount_paid: given })
+            body: JSON.stringify({ 
+                order_id: currentOrderId, 
+                payment_method: method, 
+                amount_paid: given 
+            })
         })
         .then(r => r.json())
         .then(data => {
             if (!data.success) throw new Error(data.error);
-            Swal.fire('Success', 'Payment Complete', 'success');
-            document.getElementById('paymentPopup').style.display = 'none';
-            selectedTableId = null; cart = {}; currentOrderId = null;
-            tableSelect.value = "0"; toggleProductLock(); filterTables(); updateCart();
+            
+            Swal.fire('Success', 'Payment Complete', 'success').then(() => {
+                // Reset everything
+                document.getElementById('paymentPopup').style.display = 'none';
+                selectedTableId = null;
+                cart = {};
+                currentOrderId = null;
+                orderDiscount = 0;
+                if(tableSelect) tableSelect.value = "0";
+                updateCart();
+                filterTables();
+            });
         })
         .catch(err => Swal.fire('Error', err.message, 'error'));
     };
@@ -968,10 +1146,7 @@ try {
         radio.addEventListener('change', function() {
             if (tableSelect) {
                 tableSelect.value = "0"; 
-                selectedTableId = null; 
-                cart = {};               
-                updateCart();
-                toggleProductLock();     
+                selectedTableId = null; cart = {}; updateCart(); toggleProductLock();     
             }
             filterTables();
         });
@@ -979,13 +1154,21 @@ try {
 
     function filterTables() {
         const type = document.querySelector('input[name="orderType"]:checked').value;
+        
+        // Update button colors
         btnDineIn.style.background = (type === 'physical') ? '#e8f5e9' : '#fff';
         btnTakeOut.style.background = (type === 'virtual') ? '#e8f5e9' : '#fff';
+
         tableSelect.querySelectorAll('option').forEach(opt => {
             if (opt.value === "0") return;
-            opt.style.display = (opt.getAttribute('data-type') === type) ? 'block' : 'none';
+            
+            const isCorrectType = opt.getAttribute('data-type') === type;
+            // You could also check a 'data-status' attribute here if you fetch it
+            opt.style.display = isCorrectType ? 'block' : 'none';
         });
     }
+
+    
 
     loadProducts();
     toggleProductLock();

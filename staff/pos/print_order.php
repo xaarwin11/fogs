@@ -5,123 +5,165 @@ session_start();
 
 header('Content-Type: application/json');
 
-try {
-    $mysqli = get_db_conn();
-
-    $order_id = $_GET['order_id'] ?? null;
-    $type     = $_GET['type'] ?? 'bill'; 
-
-    if (!$order_id) throw new Exception("Missing order ID");
-
-    // --- STEP A: FETCH PRINTER CONFIG BASED ON ROUTING ---
-    $setting_key = ($type === 'kitchen') ? 'route_kitchen' : 'route_receipt';
-
-    $p_query_string = "
+/**
+ * Helper to fetch specific printer configuration
+ */
+function getPrinterConfig($mysqli, $setting_key) {
+    $p_query = "
         SELECT p.* FROM printers p 
         JOIN system_settings s ON p.id = s.setting_value 
         WHERE s.setting_key = ? AND p.is_active = 1 
         LIMIT 1
     ";
-
-    $p_stmt = $mysqli->prepare($p_query_string); 
+    $p_stmt = $mysqli->prepare($p_query); 
     $p_stmt->bind_param("s", $setting_key);
     $p_stmt->execute();
-    $p_conf = $p_stmt->get_result()->fetch_assoc();
+    return $p_stmt->get_result()->fetch_assoc();
+}
 
-    if (!$p_conf) {
-        $backup = $mysqli->query("SELECT * FROM printers WHERE is_active = 1 LIMIT 1");
-        $p_conf = $backup->fetch_assoc();
-    }
+try {
+    $mysqli = get_db_conn();
+    $order_id = $_GET['order_id'] ?? null;
+    $type     = $_GET['type'] ?? 'bill'; 
 
-    if (!$p_conf) throw new Exception("No active printer found for $type");
+    if (!$order_id) throw new Exception("Missing order ID");
 
-    // --- STEP B: FETCH ORDER ITEMS ---
-    if ($type === 'kitchen') {
-        // KITCHEN: Only fetch items that haven't been printed yet
-        $stmt = $mysqli->prepare("
-            SELECT (oi.quantity - oi.kitchen_printed) as quantity, p.name, oi.price
-            FROM order_items oi
-            JOIN products p ON oi.product_id = p.id
-            WHERE oi.order_id = ? AND (oi.quantity - oi.kitchen_printed) > 0
-        ");
-    } else {
-        // BILL: Fetch everything
-        $stmt = $mysqli->prepare("
-            SELECT oi.quantity, p.name, oi.price
-            FROM order_items oi
-            JOIN products p ON oi.product_id = p.id
-            WHERE oi.order_id = ?
-        ");
-    }
-    
+    $printer_errors = [];
+
+    // --- STEP A: FETCH ITEMS ---
+    $sql = "
+        SELECT 
+            oi.id as order_item_id,
+            oi.quantity, 
+            oi.kitchen_printed,
+            p.name as product_name, 
+            pv.name as variation_name,
+            c.cat_type,
+            oi.base_price,
+            oi.modifier_total
+        FROM order_items oi
+        JOIN products p ON oi.product_id = p.id
+        JOIN categories c ON p.category_id = c.id
+        LEFT JOIN product_variations pv ON oi.variation_id = pv.id
+        WHERE oi.order_id = ?
+    ";
+
+    $stmt = $mysqli->prepare($sql);
     $stmt->bind_param("i", $order_id);
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
-    // If kitchen call but no new items to cook, exit gracefully
-    if ($type === 'kitchen' && empty($rows)) {
-        echo json_encode(['success' => true, 'message' => 'No new items for kitchen']);
-        exit;
-    }
-    
-    if (empty($rows)) throw new Exception("No items found");
+    if (empty($rows)) throw new Exception("No items found for this order.");
 
-    $items = [];
-    foreach ($rows as $r) {
-        $items[] = [
-            'quantity' => (int)$r['quantity'],
-            'name'     => $r['name'],
-            'price'    => (float)$r['price']
-        ];
-    }
-
-    // --- STEP C: INITIALIZE SERVICE ---
-    $printer = new PrinterService($p_conf['connection_type'], $p_conf['path'], (int)$p_conf['character_limit']);
-
-    if (!$printer->isValid()) throw new Exception("Printer " . $p_conf['path'] . " not reachable");
-
-    // --- STEP D: DATA PREP (HARDWARE & META) ---
-    // --- STEP D: DATA PREP (HARDWARE & META) ---
-    $options = [
-        // Convert to int first so "0" becomes 0 (false) and "1" becomes 1 (true)
-        'beep' => (int)$p_conf['beep_on_print'] === 1,
-        'cut'  => (int)$p_conf['cut_after_print'] === 1
-    ];
-
-    $business_query = $mysqli->query("SELECT setting_key, setting_value FROM system_settings WHERE category = 'business'");
+    // --- STEP B: FETCH BUSINESS PROFILE (FIXED HERE) ---
+    $biz_res = $mysqli->query("SELECT setting_key, setting_value FROM system_settings WHERE category = 'business'");
     $biz = [];
-    while ($row = $business_query->fetch_assoc()) {
-        $biz[$row['setting_key']] = $row['setting_value'];
+    while ($b_row = $biz_res->fetch_assoc()) {
+        $biz[$b_row['setting_key']] = $b_row['setting_value'];
     }
 
-    $t_stmt = $mysqli->prepare("SELECT t.table_number FROM orders o JOIN tables t ON o.table_id = t.id WHERE o.id = ?");
-    $t_stmt->bind_param("i", $order_id);
-    $t_stmt->execute();
-    $t_res = $t_stmt->get_result()->fetch_assoc();
+    // --- STEP C: PREPARE ORDER META ---
+    $o_stmt = $mysqli->prepare("SELECT o.reference, t.table_number FROM orders o LEFT JOIN tables t ON o.table_id = t.id WHERE o.id = ?");
+    $o_stmt->bind_param("i", $order_id);
+    $o_stmt->execute();
+    $order_meta = $o_stmt->get_result()->fetch_assoc();
 
     $meta = [
         'Store'   => $biz['store_name'] ?? 'FOGS RESTAURANT',
         'Address' => $biz['store_address'] ?? '',
         'Phone'   => $biz['store_phone'] ?? '',
-        'Table'   => $t_res['table_number'] ?? '-',
+        'Table'   => $order_meta['table_number'] ?? 'Takeout',
         'Staff'   => $_SESSION['username'] ?? 'Staff',
-        'Date'    => date('M d, Y h:i A')
+        'Date'    => date('M d, Y h:i A'),
+        'Ref'     => $order_meta['reference']
     ];
 
-    // --- STEP E: EXECUTE PRINT & DB UPDATE ---
+    // --- STEP D: EXECUTE ROUTING LOGIC ---
     if ($type === 'kitchen') {
-        $printer->printTicket("KITCHEN ORDER", $items, $meta, false, $options);
-        
-        // 🟢 ONLY update DB if printing didn't crash
-        $update_stmt = $mysqli->prepare("UPDATE order_items SET kitchen_printed = quantity WHERE order_id = ?");
-        $update_stmt->bind_param("i", $order_id);
-        $update_stmt->execute();
+        $kitchen_items = [];
+        $bar_items = [];
+
+        foreach ($rows as $r) {
+            $qty_to_print = (int)$r['quantity'] - (int)$r['kitchen_printed'];
+            if ($qty_to_print <= 0) continue;
+
+            $m_stmt = $mysqli->prepare("SELECT name FROM order_item_modifiers WHERE order_item_id = ?");
+            $m_stmt->bind_param("i", $r['order_item_id']);
+            $m_stmt->execute();
+            $mods = $m_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+            $formatted = [
+                'quantity'  => $qty_to_print,
+                'name'      => $r['product_name'] . ($r['variation_name'] ? " ({$r['variation_name']})" : ""),
+                'modifiers' => $mods
+            ];
+
+            if ($r['cat_type'] === 'drink') {
+                $bar_items[] = $formatted;
+            } else {
+                $kitchen_items[] = $formatted;
+            }
+        }
+
+        // 1. KITCHEN
+        if (!empty($kitchen_items)) {
+            try {
+                $conf = getPrinterConfig($mysqli, 'route_kitchen');
+                if ($conf) {
+                    $p = new PrinterService($conf['connection_type'], $conf['path'], (int)$conf['character_limit']);
+                    $p->printTicket("KITCHEN ORDER", $kitchen_items, $meta, false, [
+                        'beep' => (int)$conf['beep_on_print'], 
+                        'cut'  => (int)$conf['cut_after_print']
+                    ]);
+                }
+            } catch (Exception $e) { $printer_errors[] = "Kitchen Printer: " . $e->getMessage(); }
+        }
+
+        // 2. BAR
+        if (!empty($bar_items)) {
+            try {
+                $conf = getPrinterConfig($mysqli, 'route_bar');
+                if ($conf) {
+                    $p = new PrinterService($conf['connection_type'], $conf['path'], (int)$conf['character_limit']);
+                    $p->printTicket("BAR ORDER", $bar_items, $meta, false, [
+                        'beep' => (int)$conf['beep_on_print'], 
+                        'cut'  => (int)$conf['cut_after_print']
+                    ]);
+                }
+            } catch (Exception $e) { $printer_errors[] = "Bar Printer: " . $e->getMessage(); }
+        }
+
+        $mysqli->query("UPDATE order_items SET kitchen_printed = quantity WHERE order_id = $order_id");
+
     } else {
-        $printer->printTicket("BILL STATEMENT", $items, $meta, true, $options);
+        // --- BILL LOGIC ---
+        try {
+            $conf = getPrinterConfig($mysqli, 'route_receipt');
+            if (!$conf) throw new Exception("Receipt printer not assigned.");
+
+            $p = new PrinterService($conf['connection_type'], $conf['path'], (int)$conf['character_limit']);
+            
+            $bill_items = [];
+            foreach ($rows as $r) {
+                $bill_items[] = [
+                    'quantity' => (int)$r['quantity'],
+                    'name'     => $r['product_name'] . ($r['variation_name'] ? " ({$r['variation_name']})" : ""),
+                    'price'    => (float)$r['base_price'] + (float)$r['modifier_total']
+                ];
+            }
+
+            $p->printTicket("BILL STATEMENT", $bill_items, $meta, true, [
+                'beep' => (int)$conf['beep_on_print'],
+                'cut' => (int)$conf['cut_after_print']
+            ]);
+        } catch (Exception $e) {
+            $printer_errors[] = "Receipt Printer: " . $e->getMessage();
+        }
     }
 
-    echo json_encode(['success' => true]);
+    echo json_encode(['success' => true, 'errors' => $printer_errors]);
 
 } catch (Exception $e) {
+    http_response_code(400);
     echo json_encode(['success' => false, 'message' => $e->getMessage()]);
 }

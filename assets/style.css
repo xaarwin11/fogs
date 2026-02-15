@@ -353,7 +353,7 @@ body .container { display:block; margin-top: 1.2rem; }
     transition: all 0.2s ease;
 }
 /* THE CART ROW */
-.cart-item { display:grid !important; grid-template-columns:1fr auto auto auto !important; gap:0.5rem !important; align-items:center !important; padding:0.75rem 0 !important; border-bottom:1px solid #e0e0e0 !important; font-size:0.9rem !important; }
+.cart-item { display:grid !important; grid-template-columns:1fr auto 60px auto !important; gap:0.5rem !important; align-items:center !important; padding:0.75rem 0 !important; border-bottom:1px solid #e0e0e0 !important; font-size:0.9rem !important; }
 
 .item-name { font-weight:600; text-align:left; }
 
@@ -685,3 +685,19 @@ body .container { display:block; margin-top: 1.2rem; }
     color: #155724;                        /* Darker green text */
     font-weight: bold;
 }
+/* Styling for the selected payment method */
+    .pm-method-label {
+        transition: all 0.2s ease;
+        border: 2px solid #ddd !important;
+    }
+    input[name="pmMethod"]:checked + .pm-method-content {
+        background: #e8f5e9;
+        border-color: #2e7d32 !important;
+        color: #2e7d32;
+    }
+    .pm-method-content {
+        display: block;
+        padding: 10px;
+        border-radius: 8px;
+        border: 2px solid transparent;
+    }

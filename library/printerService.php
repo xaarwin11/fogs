@@ -3,7 +3,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use Mike42\Escpos\Printer;
 use Mike42\Escpos\EscposImage;
 use Mike42\Escpos\PrintConnectors\WindowsPrintConnector;
-use Mike42\Escpos\PrintConnectors\NetworkPrintConnector; // Added for LAN
+use Mike42\Escpos\PrintConnectors\NetworkPrintConnector;
 
 class PrinterService
 {
@@ -11,25 +11,27 @@ class PrinterService
     private $connector = null;
     private $charLimit;
 
-    public function __construct($type, $path, $charLimit = 48)
+    public function __construct($type, $path, $charLimit = 32, $port = 9100)
     {
         $this->charLimit = $charLimit;
         try {
-            // This detects the "connection_type" column from your database
+            // Support for your new LAN/Network type
             if ($type === 'network' || $type === 'lan') { 
-                // Uses the IP address stored in the "path" column
-                $this->connector = new \Mike42\Escpos\PrintConnectors\NetworkPrintConnector($path, 9100);
-            } elseif ($type === 'usb') {
-                // Uses the printer name stored in the "path" column
+                // 3 second timeout so it doesn't hang your POS
+                $this->connector = new NetworkPrintConnector($path, $port, 3);
+            } elseif ($type === 'usb' || $type === 'windows') {
                 $this->connector = new WindowsPrintConnector($path);
             } else {
                 throw new Exception("Unsupported printer type: " . $type);
             }
 
-            $this->printer = new Printer($this->connector);
+            if ($this->connector) {
+                $this->printer = new Printer($this->connector);
+            }
         } catch (Exception $e) {
             $this->printer = null;
-            // For debugging, you can log $e->getMessage();
+            // Throwing this allows print_order.php to catch it and show the Swal warning
+            throw new Exception($e->getMessage());
         }
     }
 
@@ -39,26 +41,20 @@ class PrinterService
         return $left . str_repeat(" ", $spaces) . $right . "\n";
     }
 
-    public function isValid() {
-        return $this->printer !== null;
-    }
-
     public function printTicket($title, $items, $meta = [], $showPrice = true, $options = [])
     {
-        if (!$this->printer) throw new Exception("Printer not initialized");
+        if (!$this->printer) throw new Exception("Printer not connected.");
 
         $total = 0;
 
-        // Beep only if explicitly requested and not suppressed by hardware
-        // NEW CODE - Uses the proper ESC/POS beep command
+        // Beep command
         if (($options['beep'] ?? 0) == 1) {
-            // \x1b\x42 is the command for "Buzzer" 
-            // \x02\x02 means beep 2 times for 200ms
             $this->connector->write("\x1b\x42\x02\x02");
         }
 
         if ($showPrice) {
             try {
+                // YOUR LOGO LOGIC
                 $logo = EscposImage::load(__DIR__ . "/../assets/print.png");
                 $this->printer->initialize(); 
                 $this->printer->setJustification(Printer::JUSTIFY_CENTER);
@@ -74,6 +70,7 @@ class PrinterService
             
             if (!empty($meta['Address'])) $this->printer->text($meta['Address'] . "\n");
             if (!empty($meta['Phone'])) $this->printer->text("Tel: " . $meta['Phone'] . "\n");
+            
             $this->printer->feed(1);
             $this->printer->setEmphasis(true);
             $this->printer->setJustification(Printer::JUSTIFY_CENTER);
@@ -98,25 +95,65 @@ class PrinterService
         foreach ($items as $item) {
             $qty   = (int)$item['quantity'];
             $name  = $item['name'];
-            $price = (float)($item['price'] ?? 0);
-            $lineTotal = $qty * $price;
+            $price = (float)($item['price'] ?? 0); 
+            $item_discount = (float)($item['discount'] ?? 0);
+            $discount_note = !empty($item['discount_note']) ? $item['discount_note'] : "Discount";
+            
+            $lineTotal = ($qty * $price) - $item_discount;
             $total += $lineTotal; 
             
             if ($showPrice) {
-                $this->printer->text($this->columnize($qty . "x " . $name, number_format($lineTotal, 2)));
+                $this->printer->text($this->columnize($qty . "x " . $name, number_format($qty * $price, 2)));
+                
+                if (!empty($item['modifiers'])) {
+                    foreach ($item['modifiers'] as $mod) {
+                        $this->printer->text("  + " . ($mod['name'] ?? $mod) . "\n");
+                    }
+                }
+
+                if ($item_discount > 0) {
+                    $this->printer->text($this->columnize("  (" . $discount_note . ")", "-" . number_format($item_discount, 2)));
+                }
             } else {
-                $this->printer->selectPrintMode(Printer::MODE_DOUBLE_HEIGHT | Printer::MODE_DOUBLE_WIDTH);
+                // KITCHEN MODE
+                $this->printer->selectPrintMode(Printer::MODE_DOUBLE_HEIGHT);
                 $this->printer->text($qty . "x " . $name . "\n");
                 $this->printer->selectPrintMode(Printer::MODE_FONT_A);
+                if (!empty($item['modifiers'])) {
+                    foreach ($item['modifiers'] as $mod) {
+                        $this->printer->text("  + " . ($mod['name'] ?? $mod) . "\n");
+                    }
+                }
                 $this->printer->text(str_repeat("-", $this->charLimit) . "\n"); 
             }
         }
 
         if ($showPrice) {
+            $order_discount = (float)($meta['OrderDiscount'] ?? 0);
+            $order_discount_label = !empty($meta['OrderDiscountNote']) ? strtoupper($meta['OrderDiscountNote']) : "DISCOUNT";
             $this->printer->text(str_repeat("=", $this->charLimit) . "\n");
+            
+            if ($order_discount > 0) {
+                $this->printer->text($this->columnize("SUBTOTAL", number_format($total, 2)));
+                $this->printer->text($this->columnize($order_discount_label, "-" . number_format($order_discount, 2)));
+                $total -= $order_discount;
+            }
+
+            // TOTAL LINE
             $this->printer->setEmphasis(true);
-            $this->printer->text($this->columnize("TOTAL", "P" . number_format($total, 2)));
+            $this->printer->selectPrintMode(Printer::MODE_DOUBLE_WIDTH);
+            
+            $doubleLimit = floor($this->charLimit / 2);
+            $left = "TOTAL";
+            $right = "P" . number_format($total, 2);
+            $spaces = $doubleLimit - strlen($left) - strlen($right);
+            if ($spaces < 1) $spaces = 1;
+            
+            $this->printer->text($left . str_repeat(" ", $spaces) . $right . "\n");
+            
             $this->printer->setEmphasis(false);
+            $this->printer->selectPrintMode(Printer::MODE_FONT_A); 
+
             $this->printer->feed(1);
             $this->printer->setJustification(Printer::JUSTIFY_CENTER);
             $this->printer->text("Thank you for dining with us!\n");
@@ -129,7 +166,6 @@ class PrinterService
         } else {
             $this->printer->feed(3);
         }
-        $this->printer->cut();
         $this->printer->close();
     }
 }
