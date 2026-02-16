@@ -1,0 +1,22 @@
+{
+  "name": "FOGSTASA'S CAFE POS",
+  "short_name": "FOGS POS",
+  "description": "Point of Sale system for FOGSTASA'S CAFE",
+  "start_url": "index.php",
+  "display": "standalone",
+  "background_color": "#F7F4F0",
+  "theme_color": "#6B4226",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "assets/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

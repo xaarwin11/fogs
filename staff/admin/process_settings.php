@@ -69,7 +69,7 @@ if ($action === 'save_printer') {
         VALUES (?, ?, ?, ?, ?, ?, 1)
     ");
     
-    $stmt->bind_param("ssisii", $label, $conn_type, $path, $port, $cut, $beep);
+    $stmt->bind_param("ssssii", $label, $conn_type, $path, $port, $cut, $beep);
 
     if ($stmt->execute()) {
         header("Location: settings.php?tab=hardware&msg=printer_saved");
@@ -95,7 +95,9 @@ if ($action === 'delete') {
     } elseif ($target === 'table') {
         $stmt = $mysqli->prepare("DELETE FROM tables WHERE id = ?");
         $tab = 'tables';
-    }
+    } elseif ($target === 'printer') {
+        $stmt = $mysqli->prepare("DELETE FROM printers WHERE id = ?");
+        $tab = 'hardware';}
 
     if (isset($stmt)) {
         $stmt->bind_param("i", $id);

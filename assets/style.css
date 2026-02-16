@@ -1,3 +1,33 @@
+/* 1. Force the browser to use a light color scheme for system elements (scrollbars, etc.) */
+:root {
+    color-scheme: light !important;
+}
+
+/* 2. Explicitly define Light Mode colors and prevent 'Auto-Dark' overrides */
+body {
+    background: #F7F4F0 !important; /* Your light cream background */
+    color: #222 !important;          /* Dark text */
+}
+
+/* 3. Disable native 'Dark Mode' if the device is set to dark */
+@media (prefers-color-scheme: dark) {
+    body {
+        background: #F7F4F0 !important;
+        color: #222 !important;
+    }
+    
+    /* Ensure cards and inputs don't turn black */
+    .table-card, .kds-card, .product-card, .cart-section, .modal, #tableDialog, input, select {
+        background-color: #ffffff !important;
+        color: #111111 !important;
+        border-color: #ddd !important;
+    }
+    
+    .nav-links, nav {
+        background: #6B4226 !important; /* Keep your brand brown */
+    }
+}
+
 body {
     font-family: 'Segoe UI', Arial, sans-serif;
     background: linear-gradient(180deg, #F7F4F0 0%, #F2E7D5 100%);
@@ -549,7 +579,7 @@ body .container { display:block; margin-top: 1.2rem; }
         box-sizing: border-box !important;
     }
     .products-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
-    .cart-section { width: 110% !important; margin-top: 15px !important; box-sizing: border-box !important; }
+    .cart-section { width: 100% !important; margin-top: 15px !important; box-sizing: border-box !important; }
     .table-grid { grid-template-columns: 1fr !important; }
 }
 
@@ -701,3 +731,13 @@ body .container { display:block; margin-top: 1.2rem; }
         border-radius: 8px;
         border: 2px solid transparent;
     }
+* {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+}
+.brand, .btn, .category-tab, .product-card, .burger {
+    user-select: none;
+}
+html, body {
+    overscroll-behavior-y: contain;
+}

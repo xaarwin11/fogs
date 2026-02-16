@@ -49,6 +49,7 @@ $cat_res = $mysqli->query("SELECT * FROM categories ORDER BY name ASC");
 <html lang="en">
 <head>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta charset="UTF-8">
     <title>Command Center | FOGS</title>
     <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/style.css">

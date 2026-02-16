@@ -5,6 +5,9 @@ if (basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'])) {
     exit;
 }
 
+echo '<meta name="color-scheme" content="light">';
+echo '<meta name="supported-color-schemes" content="light">';
+
 $role = strtolower($_SESSION['role'] ?? '');
 
 /**
@@ -30,12 +33,12 @@ $baseUrl = substr($scriptDir, 0, strpos($scriptDir, '/staff'));
                 <a href="<?php echo $baseUrl; ?>/staff/time_tracker/time_tracking.php">Time Tracking</a>
                 <a href="<?php echo $baseUrl; ?>/staff/products/products_admin.php">Products</a>
                 <a href="<?php echo $baseUrl; ?>/staff/kds/kitchen.php">Kitchen Display</a>
-                <a href="<?php echo $baseUrl; ?>/logout.php" class="logout-mobile">Logout</a> </div>
             <?php endif; ?>
             <?php if ($role === 'manager' || $role === 'admin'): ?>
-                <a href="<?php echo $baseUrl; ?>/staff/reports/reports.php">Reports</a>
-                <a href="<?php echo $baseUrl; ?>/staff/admin/settings.php">Settings</a>
+                <a class="nav-link" href="<?php echo $baseUrl; ?>/staff/reports/reports.php">Reports</a>
+                <a class="nav-link" href="<?php echo $baseUrl; ?>/staff/admin/settings.php">Settings</a>
             <?php endif; ?>
+                <a href="<?php echo $baseUrl; ?>/logout.php" class="logout-mobile">Logout</a>
         </div>
     </div>
     <div class="nav-right">
