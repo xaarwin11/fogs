@@ -955,10 +955,46 @@ try {
         (allProducts[category] || []).forEach(p => {
             const card = document.createElement('div');
             card.className = 'product-card';
+            
+            // VISUAL TWEAK: Show "OPEN PRICE" if price is 0
+            const priceDisplay = parseFloat(p.price) > 0 
+                ? '₱' + parseFloat(p.price).toFixed(2) 
+                : '<span style="color:#e67e22; font-weight:bold;">OPEN PRICE</span>';
+
             card.innerHTML = `<div class="product-name">${p.name}</div>
-                            <div class="product-price">${parseInt(p.has_variation) === 1 ? 'Starts at ' : ''}₱${parseFloat(p.price).toFixed(2)}</div>`;
+                              <div class="product-price">
+                                  ${parseInt(p.has_variation) === 1 ? 'Starts at ' : ''}${priceDisplay}
+                              </div>`;
+            
             card.onclick = () => {
                 editingUniqueKey = null; 
+                
+                // --- NEW LOGIC: CHECK FOR ZERO/OPEN PRICE ---
+                if (parseFloat(p.price) <= 0) {
+                    Swal.fire({
+                        title: 'Enter Price',
+                        text: `Set price for ${p.name}`,
+                        input: 'number',
+                        inputAttributes: { min: 1, step: '0.01' },
+                        showCancelButton: true,
+                        confirmButtonText: 'Add to Order',
+                        confirmButtonColor: '#6B4226',
+                        preConfirm: (value) => {
+                            if (!value || parseFloat(value) <= 0) {
+                                Swal.showValidationMessage('Please enter a valid amount');
+                            }
+                            return parseFloat(value);
+                        }
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            // Pass the CUSTOM VALUE as the base price
+                            addToCart(p.id, p.name, result.value, null, null, [], 0);
+                        }
+                    });
+                    return; // Stop here so we don't trigger the normal add
+                }
+                // ---------------------------------------------
+
                 const needsPicker = parseInt(p.has_variation) === 1 || parseInt(p.has_modifiers) === 1;
                 if (needsPicker) showVariationPicker(p.id, p.name);
                 else addToCart(p.id, p.name, p.price, null, null, [], 0);

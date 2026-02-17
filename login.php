@@ -1,10 +1,14 @@
 <?php
-require_once 'db.php';
+require_once 'db.php';?>
+<script>
+    window.FOGS_BASE_URL = "<?php echo $base_url; ?>";
+</script>
+<?php
 session_start();
 
 // Redirect if already logged in for POS
 if (!empty($_SESSION['user_id']) && !isset($_POST['action_mode'])) {
-    header('Location: staff/pos/pos.php');
+    header('Location: /fogs-1/staff/pos/pos.php');
     exit;
 }
 
@@ -46,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Set the role name (lowercase) for consistency with your checks
                 $_SESSION['role'] = strtolower($user_data['role_name']); 
                 
-                header('Location: staff/pos/pos.php');
+                header('Location: /fogs-1/staff/pos/pos.php');
                 exit;
             } else {
                 // --- TIME PUNCH LOGIC ---
@@ -96,7 +100,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#6B4226">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="<?php echo $base_url; ?>/manifest.json">
+    <script>
+    // Register the service worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+        navigator.serviceWorker.register('<?php echo $base_url; ?>/sw.js')
+            .then(reg => console.log('SW Registered!', reg))
+            .catch(err => console.log('SW Registration Failed', err));
+        });
+    }
+    </script>
     <title>FOGS System</title>
     <style>
         :root { --p-brown: #8D6E63; --d-brown: #6B4226; --tan: #C58F63; --cream: #F2E7D5; }

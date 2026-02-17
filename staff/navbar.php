@@ -20,6 +20,8 @@ $scriptDir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME']));
 $baseUrl = substr($scriptDir, 0, strpos($scriptDir, '/staff')); 
 ?>
 
+<link rel="manifest" href="<?php echo $baseUrl; ?>/manifest.json">
+
 <nav>
     <div class="nav-left">
         <span class="brand">FOGSTASA'S CAFE</span>

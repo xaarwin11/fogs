@@ -1,0 +1,14 @@
+# Force Apache to serve the manifest with the correct PWA type
+AddType application/manifest+json .json
+
+# Prevent caching of the manifest and sw while we are testing
+<FilesMatch "\.(json|js)$">
+    Header set Cache-Control "max-age=0, no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+</FilesMatch>
+
+<IfModule mod_mime.c>
+  AddType application/manifest+json .json
+  AddType application/javascript .js
+</IfModule>

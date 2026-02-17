@@ -34,6 +34,10 @@ body {
     margin: 0;
     min-height: 100vh;
     color: #222;
+    height: auto !important;  /* Force it to expand */
+    overflow-y: auto;         
+    touch-action: pan-y;      /* Tells Chrome to allow vertical swiping */
+    -webkit-overflow-scrolling: touch; 
 }
 
 header, nav, .navbar {
@@ -486,6 +490,9 @@ body .container { display:block; margin-top: 1.2rem; }
     html, body {
         overflow-x: hidden;
         position: relative;
+        overflow-y: auto !important; 
+        height: auto !important; /* Allow it to be longer than the screen */
+        min-height: 100vh;
     }
 
     /* 1. Navbar: Tighten the height and padding */
@@ -737,7 +744,4 @@ body .container { display:block; margin-top: 1.2rem; }
 }
 .brand, .btn, .category-tab, .product-card, .burger {
     user-select: none;
-}
-html, body {
-    overscroll-behavior-y: contain;
 }

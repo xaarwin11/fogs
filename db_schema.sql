@@ -223,13 +223,16 @@ INSERT INTO product_variations (`product_id`, `name`, `price`) VALUES
 (2, 'Regular', 150.00), (2, 'Large', 130.00);
 
 INSERT INTO `printers` (`printer_label`, `connection_type`, `path`, `is_active`) VALUES
-('Main Receipt Printer', 'usb', 'VOZY-80', 1);
+('Main Receipt Printer', 'lan', '192.168.0.7', 1);
 
 INSERT INTO `system_settings` (`setting_key`, `setting_value`, `category`) VALUES
-('store_name', 'FOGS RESTAURANT', 'business'),
-('store_address', 'San Esteban, Ilocos Region', 'business'),
+('store_name', 'FogsTasa\'s Cafe', 'business'),
+('store_address', 'San Esteban, Ilocos Sur', 'business'),
 ('vat_rate', '0', 'financial'), 
-('currency_symbol', '₱', 'pos');
+('currency_symbol', '₱', 'pos'),
+('route_receipt', '1', 'hardware'),
+('route_kitchen', '2', 'hardware'),
+('route_bar', '3', 'hardware');
 
 INSERT INTO `tables` (`table_number`, `status`, `table_type`) VALUES 
 ('1', 'available', 'physical'), ('2', 'available', 'physical'),
